@@ -72,10 +72,10 @@
 #define LV_USE_ANIMATION 1
 
 /* Widgets: keep only those actually used (obj, label, bar, img for stripe, maybe line). */
-#define LV_USE_ARC        0
+#define LV_USE_ARC        1
 #define LV_USE_BAR        1
-#define LV_USE_BTN        0
-#define LV_USE_BTNMATRIX  0
+#define LV_USE_BTN        1
+#define LV_USE_BTNMATRIX  1
 #define LV_USE_CANVAS     0
 #define LV_USE_CHECKBOX   0
 #define LV_USE_DROPDOWN   0
@@ -88,7 +88,7 @@
 #define LV_USE_ROLLER     0
 #define LV_USE_SLIDER     0
 #define LV_USE_SWITCH     0
-#define LV_USE_TEXTAREA   0
+#define LV_USE_TEXTAREA   1
 #define LV_USE_TABLE      0
 
 /* Layouts: only flex is needed for simple horizontal/vertical arrangement */
@@ -102,6 +102,15 @@
 /* Others */
 #define LV_USE_SNAPSHOT 0
 #define LV_USE_MONKEY   0
+
+/* ---- GPU / Hardware acceleration backends (explicitly disabled for ESP32 + TFT_eSPI) ---- */
+/* Ensures LVGL doesn't compile unused hardware renderer stubs, saving flash */
+#define LV_USE_GPU_ARM2D         0
+#define LV_USE_GPU_NXP_PXP       0
+#define LV_USE_GPU_NXP_VG_LITE   0
+#define LV_USE_GPU_STM32_DMA2D   0
+#define LV_USE_GPU_SWM341_DMA2D  0
+#define LV_USE_GPU_SDL           0
 
 /* Disable drawing/image codec extras not used */
 #define LV_USE_PNG 0
