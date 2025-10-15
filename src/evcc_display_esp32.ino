@@ -1064,32 +1064,39 @@ void updateUI() {
     
     // Update phase current bars
     int phaseBarWidth = 30;
-    for (int i = 0; i < 3; i++) {
-        if (i < activeLP->phasesActive && activeLP->maxCurrent > 0) {
-            // Show grey background bar (full width)
-            lv_obj_clear_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN);
-            
-            // Calculate offered current bar width (middle layer, dimmed green)
-            float offeredRatio = activeLP->offeredCurrent / activeLP->maxCurrent;
-            if (offeredRatio > 1.0) offeredRatio = 1.0;
-            int offeredWidth = (int)(offeredRatio * phaseBarWidth);
-            if (offeredWidth < 1 && activeLP->offeredCurrent > 0.1) offeredWidth = 1;
-            lv_obj_set_width(ui.car.phase_offered_bars[i], offeredWidth);
-            lv_obj_clear_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN);
-            
-            // Calculate and show actual charging current bar (top layer, full green)
-            if (activeLP->chargeCurrents[i] > 0) {
-                float currentRatio = activeLP->chargeCurrents[i] / activeLP->maxCurrent;
-                if (currentRatio > 1.0) currentRatio = 1.0;
-                int actualWidth = (int)(currentRatio * phaseBarWidth);
-                if (actualWidth < 1 && activeLP->chargeCurrents[i] > 0.1) actualWidth = 1; // Minimum visibility
-                lv_obj_set_width(ui.car.phase_bars[i], actualWidth);
-                lv_obj_clear_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
+    if (activeLP->charging) {
+        for (int i = 0; i < 3; i++) {
+            if (i < activeLP->phasesActive && activeLP->maxCurrent > 0) {
+                // Show grey background bar (full width)
+                lv_obj_clear_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN);
+                // Calculate offered current bar width (middle layer, dimmed green)
+                float offeredRatio = activeLP->offeredCurrent / activeLP->maxCurrent;
+                if (offeredRatio > 1.0) offeredRatio = 1.0;
+                int offeredWidth = (int)(offeredRatio * phaseBarWidth);
+                if (offeredWidth < 1 && activeLP->offeredCurrent > 0.1) offeredWidth = 1;
+                lv_obj_set_width(ui.car.phase_offered_bars[i], offeredWidth);
+                lv_obj_clear_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN);
+                // Calculate and show actual charging current bar (top layer, full green)
+                if (activeLP->chargeCurrents[i] > 0) {
+                    float currentRatio = activeLP->chargeCurrents[i] / activeLP->maxCurrent;
+                    if (currentRatio > 1.0) currentRatio = 1.0;
+                    int actualWidth = (int)(currentRatio * phaseBarWidth);
+                    if (actualWidth < 1 && activeLP->chargeCurrents[i] > 0.1) actualWidth = 1; // Minimum visibility
+                    lv_obj_set_width(ui.car.phase_bars[i], actualWidth);
+                    lv_obj_clear_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lv_obj_add_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
+                }
             } else {
+                // Hide all bars for inactive phases or when maxCurrent not available
+                lv_obj_add_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN);
+                lv_obj_add_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN);
                 lv_obj_add_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
             }
-        } else {
-            // Hide all bars for inactive phases or when maxCurrent not available
+        }
+    } else {
+        // Hide all phase bars if not charging
+        for (int i = 0; i < 3; i++) {
             lv_obj_add_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN);
             lv_obj_add_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
