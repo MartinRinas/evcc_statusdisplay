@@ -12,8 +12,11 @@
 #include <lvgl.h>
 #include <TFT_eSPI.h>
 #include <esp_task_wdt.h>
+#include <ESPAsyncWebServer.h>
 #include "wifi_config.h"
 #include "config.h"
+#include "logging.h"
+#include "webserver.h"
 
 // Threshold (in Watts) below which values are considered inactive for dimming
 #ifndef POWER_ACTIVE_THRESHOLD
@@ -50,6 +53,19 @@ int stripe_offset = 0;
 
 // Loadpoint rotation state
 RotationState rotationState;
+
+// Web server for status/logs
+AsyncWebServer server(WEB_SERVER_PORT);
+
+// Log buffer globals (definitions - declarations in logging.h)
+LogEntry logBuffer[LOG_BUFFER_SIZE];
+int logHead = 0;
+int logCount = 0;
+bool debugEnabled = DEBUG_MODE;
+uint32_t logTotal = 0;
+uint32_t logOverwrites = 0;
+uint32_t logDropped = 0;
+portMUX_TYPE logMux = portMUX_INITIALIZER_UNLOCKED;
 
 // UI element references
 struct UIElements {
@@ -186,7 +202,7 @@ LoadpointData* getActiveLoadpoint() {
     if (now - rotationState.lastRotation >= ROTATION_INTERVAL) {
         rotationState.currentLoadpoint = !rotationState.currentLoadpoint;
         rotationState.lastRotation = now;
-        Serial.printf("Rotating to loadpoint %d\n", rotationState.currentLoadpoint ? 1 : 2);
+        logMessage("Rotating to loadpoint " + String(rotationState.currentLoadpoint ? 1 : 2));
     }
     
     return rotationState.currentLoadpoint ? &data.lp1 : &data.lp2;
@@ -223,12 +239,12 @@ void applyStripePattern(lv_obj_t* segment, bool charging) {
         // Apply stripe pattern when charging
         lv_obj_add_style(segment, &stripe_style, LV_PART_INDICATOR);
         stripe_applied = true;
-        Serial.println("Applied stripe pattern (charging)");
+        logMessage("Applied stripe pattern (charging)");
     } else if (!charging && stripe_applied) {
         // Remove stripe pattern when not charging
         lv_obj_remove_style(segment, &stripe_style, LV_PART_INDICATOR);
         stripe_applied = false;
-        Serial.println("Removed stripe pattern (not charging)");
+        logMessage("Removed stripe pattern (not charging)");
     }
 }
 
@@ -469,9 +485,16 @@ String formatPlanTime(const String& isoTime) {
     return dayString + " " + timeString;
 }
 
+// Setup web server endpoints (implementation now in webserver.h)
+void startWebServer() {
+    setupWebServer(server);
+    server.begin();
+    logMessage("Web server started on port " + String(WEB_SERVER_PORT));
+}
+
 // WiFi connection
 bool connectWiFi() {
-    Serial.println("Connecting to WiFi...");
+    logMessage("Connecting to WiFi...");
     updateWiFiStatus("Connecting to WiFi...", ssid, "");
     
     WiFi.begin(ssid, password);
@@ -480,7 +503,6 @@ bool connectWiFi() {
     int maxAttempts = 40; // 20 seconds max (40 * 500ms)
     while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
         delay(500);
-        Serial.print(".");
         // Feed watchdog and keep LVGL/UI responsive while blocking here
         esp_task_wdt_reset();
         lv_task_handler();
@@ -495,9 +517,7 @@ bool connectWiFi() {
     }
     
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.println();
-        Serial.print("Connected! IP: ");
-        Serial.println(WiFi.localIP());
+        logMessage("Connected! IP: " + WiFi.localIP().toString());
         
         // Show success status
         updateWiFiStatus("WiFi Connected!", ssid, WiFi.localIP().toString());
@@ -505,8 +525,7 @@ bool connectWiFi() {
         
         return true;
     } else {
-        Serial.println();
-        Serial.println("Failed to connect to WiFi");
+        logMessage("Failed to connect to WiFi");
         
         // Show failure status
         updateWiFiStatus("WiFi Connection Failed", ssid, "Check credentials");
@@ -521,8 +540,7 @@ bool httpGet(const char* path, String& response) {
     HTTPClient http;
     String url = "http://" + String(evcc_host) + ":" + String(evcc_port) + String(path);
     
-    Serial.print("Requesting: ");
-    Serial.println(url);
+    logMessage("Requesting: " + url);
     
     http.begin(url);
     http.setTimeout(HTTP_TIMEOUT);
@@ -532,13 +550,11 @@ bool httpGet(const char* path, String& response) {
     
     if (httpCode == HTTP_CODE_OK) {
         response = http.getString();
-        Serial.printf("HTTP success: %d chars\n", response.length());
-        Serial.println("=== HTTP Response ===");
-        Serial.println(response);
-        Serial.println("=== End Response ===");
+        logMessage("HTTP success: " + String(response.length()) + " chars");
+        // Response content logged only in verbose mode to save memory
         success = true;
     } else {
-        Serial.printf("HTTP error: %d\n", httpCode);
+    logMessage((uint8_t)LOG_LEVEL_ERROR, "HTTP error: " + String(httpCode));
     }
     
     http.end();
@@ -551,7 +567,7 @@ bool parseCombinedData(const String& json) {
     DeserializationError error = deserializeJson(doc, json);
     
     if (error) {
-        Serial.printf("Combined parse error: %s\n", error.c_str());
+    logMessage((uint8_t)LOG_LEVEL_ERROR, "Combined parse error: " + String(error.c_str()));
         return false;
     }
     
@@ -913,7 +929,7 @@ void createUI() {
     // Load screen
     lv_scr_load(ui.screen);
     
-    Serial.printf("UI created - Free heap: %d bytes\n", ESP.getFreeHeap());
+    logMessage("UI created - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
 }
 
 // Update UI with current data
@@ -1180,11 +1196,11 @@ void updateUI() {
 
 // Poll EVCC data
 bool pollEVCCData() {
-    Serial.printf("Starting poll - Free heap: %d bytes\n", ESP.getFreeHeap());
+    logMessage("Starting poll - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
     
     // Check memory before HTTP request
     if (ESP.getFreeHeap() < 16000) {
-        Serial.println("Insufficient memory for HTTP request");
+    logMessage((uint8_t)LOG_LEVEL_WARN, "Insufficient memory for HTTP request");
         return false;
     }
     
@@ -1203,13 +1219,13 @@ bool pollEVCCData() {
             
             // Memory health check
             if (ESP.getFreeHeap() < 12000) {
-                Serial.printf("WARNING: Low memory after poll: %d bytes\n", ESP.getFreeHeap());
+                logMessage((uint8_t)LOG_LEVEL_WARN, "Low memory after poll: " + String(ESP.getFreeHeap()) + " bytes");
             }
             
             return true;
         }
     } else {
-        Serial.println("HTTP request failed");
+    logMessage((uint8_t)LOG_LEVEL_ERROR, "HTTP request failed");
     }
     
     return false;
@@ -1290,7 +1306,7 @@ void cleanupWiFiStatusScreen() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("EVCC Display ESP32 - Starting...");
+    logMessage("EVCC Display ESP32 - Starting...", true);
     
     // Initialize watchdog timer (8 seconds)
     esp_task_wdt_deinit(); // Clear any existing watchdog
@@ -1320,14 +1336,17 @@ void setup() {
     // Initialize stripe pattern style
     initStripeStyle();
     
-    Serial.printf("Display initialized - Free heap: %d bytes\n", ESP.getFreeHeap());
+    logMessage("Display initialized - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
     
     // Show WiFi connecting status immediately
     showWiFiConnectingStatus();
     
     // Connect to WiFi
     if (connectWiFi()) {
-        Serial.printf("After WiFi - Free heap: %d bytes\n", ESP.getFreeHeap());
+        logMessage("After WiFi - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+        
+        // Start web server for status/logs
+        startWebServer();
         
         // Update status for time sync
         updateWiFiStatus("Synchronizing time...", ssid, WiFi.localIP().toString());
@@ -1336,7 +1355,7 @@ void setup() {
         configTime(0, 0, "pool.ntp.org", "time.nist.gov");
         setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1); // Europe/Berlin timezone
         tzset();
-        Serial.println("Waiting for time synchronization...");
+        logMessage("Waiting for time synchronization...");
         time_t now = time(nullptr);
         int attempts = 0;
         while (now < 8 * 3600 * 2 && attempts < 20) {
@@ -1354,20 +1373,20 @@ void setup() {
                 updateWiFiStatus(syncMsg, ssid, WiFi.localIP().toString());
             }
         }
-        Serial.printf("Time synchronized: %s", ctime(&now));
-        
+    logMessage("Time synchronized: " + String(ctime(&now)));
+                
         // Update status for HTTP test
         updateWiFiStatus("Testing EVCC connection...", ssid, WiFi.localIP().toString());
         
         // Test HTTP before UI creation
-        Serial.println("Testing HTTP before UI creation...");
+        logMessage("Testing HTTP before UI creation...");
         String response;
         if (httpGet(combined_path, response)) {
-            Serial.println("✅ HTTP test successful before UI!");
+            logMessage("✅ HTTP test successful before UI!");
             parseCombinedData(response);
         }
         
-        Serial.printf("After HTTP test - Free heap: %d bytes\n", ESP.getFreeHeap());
+        logMessage("After HTTP test - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
         
         // Update status for UI creation
         updateWiFiStatus("Creating interface...", ssid, WiFi.localIP().toString());
@@ -1378,15 +1397,15 @@ void setup() {
         // Clean up WiFi status screen
         cleanupWiFiStatusScreen();
         
-        Serial.printf("After UI creation - Free heap: %d bytes\n", ESP.getFreeHeap());
+        logMessage("After UI creation - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
         
         // Update UI with initial data
         updateUI();
-        Serial.println("📊 UI updated with initial data");
+        logMessage("📊 UI updated with initial data");
         
-        Serial.printf("Setup complete - Free heap: %d bytes\n", ESP.getFreeHeap());
+        logMessage("Setup complete - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
     } else {
-        Serial.println("WiFi failed - running in demo mode");
+        logMessage("WiFi failed - running in demo mode");
         
         // Keep error message visible for a moment, then switch to demo UI
         delay(3000);
@@ -1425,11 +1444,11 @@ void loop() {
         lastPoll = now;
         if (!pollEVCCData()) {
             data.consecutiveFailures++;
-            Serial.printf("Poll failed (#%d)\n", data.consecutiveFailures);
+            logMessage((uint8_t)LOG_LEVEL_WARN, "Poll failed (#" + String(data.consecutiveFailures) + ")");
             
             // Emergency restart if too many failures
             if (data.consecutiveFailures > 50) {
-                Serial.println("Too many failures, restarting...");
+                logMessage((uint8_t)LOG_LEVEL_ERROR, "Too many failures, restarting...", true);
                 delay(1000);
                 ESP.restart();
             }
@@ -1440,7 +1459,7 @@ void loop() {
     if (WiFi.status() != WL_CONNECTED) {
         static unsigned long lastReconnectAttempt = 0;
         if (now - lastReconnectAttempt > 30000) { // Try every 30 seconds
-            Serial.println("WiFi disconnected, attempting reconnect...");
+            logMessage((uint8_t)LOG_LEVEL_WARN, "WiFi disconnected, attempting reconnect...");
             WiFi.begin(ssid, password);
             lastReconnectAttempt = now;
         }

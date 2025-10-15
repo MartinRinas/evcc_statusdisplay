@@ -29,6 +29,23 @@
 #define HTTP_TIMEOUT 8000       // 8 seconds
 #define ROTATION_INTERVAL 10000 // 10 seconds for loadpoint rotation
 
+// Debug configuration
+#define DEBUG_MODE false        // Enable debug logging (Serial + Web) (default off)
+#define WEB_SERVER_PORT 80      // HTTP server port for status/logs
+#define LOG_BUFFER_SIZE 100     // Maximum number of log entries to keep
+
+// Logging levels
+#define LOG_LEVEL_ERROR   ((uint8_t)0)
+#define LOG_LEVEL_WARN    ((uint8_t)1)
+#define LOG_LEVEL_INFO    ((uint8_t)2)
+#define LOG_LEVEL_DEBUG   ((uint8_t)3)
+#define LOG_LEVEL_VERBOSE ((uint8_t)4)
+
+// Minimum level to store / display (compile time). Can be overridden later.
+#ifndef LOG_MIN_LEVEL
+#define LOG_MIN_LEVEL LOG_LEVEL_INFO
+#endif
+
 // Color definitions
 #define COLOR_GRID_BG     0xf3f3f7
 #define COLOR_PANEL_BG    0xFFFFFF
