@@ -28,7 +28,7 @@ extern uint32_t logDropped;
 extern portMUX_TYPE logMux;
 
 // Convert level to short string
-const char* levelToStr(uint8_t lvl) {
+inline const char* levelToStr(uint8_t lvl) {
     switch(lvl) {
         case LOG_LEVEL_ERROR: return "ERR";
         case LOG_LEVEL_WARN: return  "WRN";
@@ -40,7 +40,7 @@ const char* levelToStr(uint8_t lvl) {
 }
 
 // Core logging function
-void logMessage(uint8_t level, const String& msg, bool forceSerial = false) {
+inline void logMessage(uint8_t level, const String& msg, bool forceSerial = false) {
     if (level > LOG_LEVEL_VERBOSE) level = LOG_LEVEL_VERBOSE; // clamp
     if (level < LOG_MIN_LEVEL) {
         // Considered dropped for display purposes
@@ -75,7 +75,7 @@ void logMessage(uint8_t level, const String& msg, bool forceSerial = false) {
 }
 
 // Backward-compatible overload (defaults to INFO)
-void logMessage(const String& message, bool forceSerial = false) {
+inline void logMessage(const String& message, bool forceSerial = false) {
     logMessage((uint8_t)LOG_LEVEL_INFO, message, forceSerial);
 }
 

@@ -29,6 +29,11 @@
 #define HTTP_TIMEOUT 8000       // 8 seconds
 #define ROTATION_INTERVAL 10000 // 10 seconds for loadpoint rotation
 
+// Threshold below which a power flow is considered inactive (used for dimming text)
+#ifndef POWER_ACTIVE_THRESHOLD
+#define POWER_ACTIVE_THRESHOLD 10.0f
+#endif
+
 // Debug configuration
 #define DEBUG_MODE false        // Enable debug logging (Serial + Web) (default off)
 #define WEB_SERVER_PORT 80      // HTTP server port for status/logs
