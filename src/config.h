@@ -56,7 +56,7 @@
 #define CONTAINER_RADIUS 0
 
 // EVCC API endpoint path  
-#define EVCC_API_PATH "/api/state?jq={gridPower:.grid.power,pvPower:.pvPower,batterySoc:.batterySoc,homePower:.homePower,batteryPower:.batteryPower,solar:{scale:(.forecast.solar.scale),todayEnergy:(.forecast.solar.today.energy)},loadpoints:[.loadpoints[0],.loadpoints[1]]|map(select(.!=null)|{chargePower:.chargePower,soc:(.vehicleSoc//.soc),charging:.charging,plugged:(.connected//.plugged),title:.title,vehicletitle:.vehicleTitle,vehicleRange:.vehicleRange,effectivePlanTime:.effectivePlanTime,effectivePlanSoc:.effectivePlanSoc,effectiveLimitSoc:.effectiveLimitSoc,planProjectedStart:.planProjectedStart})}"
+#define EVCC_API_PATH "/api/state?jq={gridPower:.grid.power,pvPower:.pvPower,batterySoc:.batterySoc,homePower:.homePower,batteryPower:.batteryPower,solar:{scale:(.forecast.solar.scale),todayEnergy:(.forecast.solar.today.energy)},loadpoints:[.loadpoints[0],.loadpoints[1]]|map(select(.!=null)|{chargePower:.chargePower,soc:(.vehicleSoc//.soc),charging:.charging,plugged:(.connected//.plugged),title:.title,vehicletitle:.vehicleTitle,vehicleRange:.vehicleRange,effectivePlanTime:.effectivePlanTime,effectivePlanSoc:.effectivePlanSoc,effectiveLimitSoc:.effectiveLimitSoc,planProjectedStart:.planProjectedStart,chargeCurrents:.chargeCurrents,maxCurrent:.maxCurrent,offeredCurrent:.chargeCurrent,phasesActive:.phasesActive})}"
 
 // Data structure for EVCC loadpoint values
 struct LoadpointData {
@@ -71,6 +71,10 @@ struct LoadpointData {
     float effectivePlanSoc = -1.0;
     float effectiveLimitSoc = -1.0;
     String planProjectedStart;
+    float chargeCurrents[3] = {0.0, 0.0, 0.0}; // Current per phase
+    float maxCurrent = 0.0;
+    float offeredCurrent = 0.0;
+    int phasesActive = 0;
     
     // Constructor with string reservation
     LoadpointData() {

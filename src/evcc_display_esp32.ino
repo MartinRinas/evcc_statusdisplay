@@ -15,6 +15,11 @@
 #include "wifi_config.h"
 #include "config.h"
 
+// Threshold (in Watts) below which values are considered inactive for dimming
+#ifndef POWER_ACTIVE_THRESHOLD
+#define POWER_ACTIVE_THRESHOLD 10.0f
+#endif
+
 // Declare the stripe pattern image
 LV_IMG_DECLARE(img_skew_strip);
 
@@ -65,6 +70,9 @@ struct UIElements {
         lv_obj_t* generation_segment;
         lv_obj_t* battery_out_segment;
         lv_obj_t* grid_in_segment;
+        lv_obj_t* generation_label;
+        lv_obj_t* battery_out_label;
+        lv_obj_t* grid_in_label;
     } in_bar;
     
     struct {
@@ -73,6 +81,10 @@ struct UIElements {
         lv_obj_t* loadpoint_segment;
         lv_obj_t* battery_in_segment;
         lv_obj_t* grid_out_segment;
+        lv_obj_t* consumption_label;
+        lv_obj_t* loadpoint_label;
+        lv_obj_t* battery_in_label;
+        lv_obj_t* grid_out_label;
     } out_bar;
     
     // Car section elements
@@ -80,6 +92,9 @@ struct UIElements {
         lv_obj_t* title_label;
         lv_obj_t* car_label;
         lv_obj_t* power_label;
+        lv_obj_t* phase_bg_bars[3];      // Grey background bars (full width)
+        lv_obj_t* phase_offered_bars[3]; // Offered current bars (dimmed green)
+        lv_obj_t* phase_bars[3];         // Current phase bars (actual charging current, full green)
         lv_obj_t* soc_bar;
         lv_obj_t* plan_soc_marker;
         lv_obj_t* limit_soc_marker;
@@ -240,8 +255,8 @@ lv_obj_t* createCompositeBar(lv_obj_t* parent, int x, int y, int width, int heig
     return container;
 }
 
-// Create colored segment within composite bar
-lv_obj_t* createBarSegment(lv_obj_t* parent, lv_color_t color) {
+// Create colored segment within composite bar with label
+lv_obj_t* createBarSegment(lv_obj_t* parent, lv_color_t color, lv_obj_t** label_out) {
     if (!parent) return nullptr;
     
     lv_obj_t* segment = lv_obj_create(parent);
@@ -259,11 +274,22 @@ lv_obj_t* createBarSegment(lv_obj_t* parent, lv_color_t color) {
     lv_obj_set_scrollbar_mode(segment, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(segment, LV_OBJ_FLAG_HIDDEN); // Start hidden
     
+    // Create label on segment for displaying power value
+    if (label_out) {
+        *label_out = lv_label_create(segment);
+        lv_obj_set_style_text_font(*label_out, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(*label_out, lv_color_hex(0xFFFFFF), 0); // White text
+        lv_obj_set_style_text_align(*label_out, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(*label_out, "");
+        lv_obj_center(*label_out);
+        lv_obj_add_flag(*label_out, LV_OBJ_FLAG_HIDDEN); // Start hidden
+    }
+    
     return segment;
 }
 
 // Update composite bar with proportional segments
-void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, float* values, int segmentCount, int barWidth) {
+void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, lv_obj_t** labels, float* values, int segmentCount, int barWidth) {
     if (!container || !segments || !values) return;
     
     // Calculate total power for normalization
@@ -282,11 +308,20 @@ void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, float* values,
             if (segments[i]) {
                 lv_obj_add_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
             }
+            if (labels && labels[i]) {
+                lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+            }
         }
         return;
     }
     
     lv_obj_clear_flag(container, LV_OBJ_FLAG_HIDDEN);
+    
+    // Get container height dynamically
+    int containerHeight = lv_obj_get_height(container);
+    
+    // Minimum width to show text (approx 40px for "999W" with 12pt font)
+    const int minWidthForText = 40;
     
     // Position segments proportionally
     int currentX = 0;
@@ -301,13 +336,27 @@ void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, float* values,
             // Position and size segment
             lv_obj_set_pos(segments[i], currentX, 0);
             lv_obj_set_width(segments[i], segmentWidth);
-            lv_obj_set_height(segments[i], 20); // Match container height
+            lv_obj_set_height(segments[i], containerHeight); // Match container height dynamically
             lv_obj_clear_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
+            
+            // Update label if provided and segment is wide enough
+            if (labels && labels[i]) {
+                if (segmentWidth >= minWidthForText) {
+                    lv_label_set_text(labels[i], formatPower(values[i]).c_str());
+                    lv_obj_center(labels[i]); // Re-center after text update
+                    lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                }
+            }
             
             currentX += segmentWidth;
         } else {
             // Hide segment if no power
             lv_obj_add_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
+            if (labels && labels[i]) {
+                lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+            }
         }
     }
 }
@@ -428,13 +477,18 @@ bool connectWiFi() {
     WiFi.begin(ssid, password);
     
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    int maxAttempts = 40; // 20 seconds max (40 * 500ms)
+    while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
         delay(500);
         Serial.print(".");
-        
-        // Update display with dots to show progress
-        char progressText[32];
-        snprintf(progressText, sizeof(progressText), "Connecting to WiFi%.*s", (attempts % 4) + 1, "....");
+        // Feed watchdog and keep LVGL/UI responsive while blocking here
+        esp_task_wdt_reset();
+        lv_task_handler();
+        yield();
+
+        // Update display with current attempt counter
+        char progressText[40];
+        snprintf(progressText, sizeof(progressText), "Connecting to WiFi, attempt %d/%d", attempts + 1, maxAttempts);
         updateWiFiStatus(progressText, ssid, "");
         
         attempts++;
@@ -549,6 +603,13 @@ bool parseCombinedData(const String& json) {
         data.lp1.effectivePlanSoc = lp1["effectivePlanSoc"] | -1.0;
         data.lp1.effectiveLimitSoc = lp1["effectiveLimitSoc"] | -1.0;
         data.lp1.planProjectedStart = lp1["planProjectedStart"] | "";
+        data.lp1.maxCurrent = lp1["maxCurrent"] | 0.0;
+        data.lp1.offeredCurrent = lp1["offeredCurrent"] | 0.0;
+        data.lp1.phasesActive = lp1["phasesActive"] | 0;
+        JsonArray currents = lp1["chargeCurrents"];
+        for (int i = 0; i < 3 && i < currents.size(); i++) {
+            data.lp1.chargeCurrents[i] = currents[i] | 0.0;
+        }
     }
     
     if (loadpoints.size() > 1 && !loadpoints[1].isNull()) {
@@ -564,6 +625,13 @@ bool parseCombinedData(const String& json) {
         data.lp2.effectivePlanSoc = lp2["effectivePlanSoc"] | -1.0;
         data.lp2.effectiveLimitSoc = lp2["effectiveLimitSoc"] | -1.0;
         data.lp2.planProjectedStart = lp2["planProjectedStart"] | "";
+        data.lp2.maxCurrent = lp2["maxCurrent"] | 0.0;
+        data.lp2.offeredCurrent = lp2["offeredCurrent"] | 0.0;
+        data.lp2.phasesActive = lp2["phasesActive"] | 0;
+        JsonArray currents = lp2["chargeCurrents"];
+        for (int i = 0; i < 3 && i < currents.size(); i++) {
+            data.lp2.chargeCurrents[i] = currents[i] | 0.0;
+        }
     }
     
     // Calculate derived values
@@ -597,17 +665,19 @@ void createEnergyRow(lv_obj_t* parent, const char* description, const char* valu
 }
 
 // Create column
-lv_obj_t* createColumn(lv_obj_t* parent, const char* title, int x_pos) {
+lv_obj_t* createColumn(lv_obj_t* parent, const char* title, int x_pos, bool showHeader) {
     lv_obj_t* column = lv_obj_create(parent);
     lv_obj_set_pos(column, x_pos, 0);
     lv_obj_set_size(column, COLUMN_WIDTH, UPPER_SECTION_HEIGHT - (2 * PADDING));
     styleContainer(column);
     
-    // Header
-    lv_obj_t* header = lv_label_create(column);
-    lv_label_set_text(header, title);
-    styleLabelHeader(header);
-    lv_obj_set_pos(header, 0, 0);
+    // Header (only if showHeader is true)
+    if (showHeader) {
+        lv_obj_t* header = lv_label_create(column);
+        lv_label_set_text(header, title);
+        styleLabelHeader(header);
+        lv_obj_set_pos(header, 0, 0);
+    }
     
     return column;
 }
@@ -642,29 +712,80 @@ void createCarSection(lv_obj_t* parent, const char* title, const char* car_name)
     styleLabelSecondary(ui.car.ladedauer_value);
     positionAndAlign(ui.car.ladedauer_value, SCREEN_WIDTH-(4*PADDING)-16-120, 25, 120, LV_TEXT_ALIGN_RIGHT);
 
-    // SoC bar
+    // Phase current bars (above SoC bar) - 3 phases max, 30px wide each, 4px tall
+    int phaseBarY = 50;
+    int phaseBarWidth = 30;
+    int phaseBarHeight = 4;
+    int phaseBarSpacing = 2;
+    
+    // Create grey background bars first (bottom layer, always full width when visible)
+    for (int i = 0; i < 3; i++) {
+        int phaseBarX = i * (phaseBarWidth + phaseBarSpacing);
+        
+        ui.car.phase_bg_bars[i] = lv_obj_create(container);
+        lv_obj_set_pos(ui.car.phase_bg_bars[i], phaseBarX, phaseBarY);
+        lv_obj_set_size(ui.car.phase_bg_bars[i], phaseBarWidth, phaseBarHeight);
+        lv_obj_set_style_bg_color(ui.car.phase_bg_bars[i], lv_color_hex(0xE0E0E0), 0); // Light grey
+        lv_obj_set_style_bg_opa(ui.car.phase_bg_bars[i], LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(ui.car.phase_bg_bars[i], 0, 0);
+        lv_obj_set_style_radius(ui.car.phase_bg_bars[i], 2, 0);
+        lv_obj_set_style_pad_all(ui.car.phase_bg_bars[i], 0, 0);
+        lv_obj_add_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN); // Start hidden
+    }
+    
+    // Create offered current bars (middle layer, dimmed green)
+    for (int i = 0; i < 3; i++) {
+        int phaseBarX = i * (phaseBarWidth + phaseBarSpacing);
+        
+        ui.car.phase_offered_bars[i] = lv_obj_create(container);
+        lv_obj_set_pos(ui.car.phase_offered_bars[i], phaseBarX, phaseBarY);
+        lv_obj_set_size(ui.car.phase_offered_bars[i], phaseBarWidth, phaseBarHeight);
+        lv_obj_set_style_bg_color(ui.car.phase_offered_bars[i], lv_color_hex(0x8BC34A), 0); // Dimmed green
+        lv_obj_set_style_bg_opa(ui.car.phase_offered_bars[i], LV_OPA_40, 0);
+        lv_obj_set_style_border_width(ui.car.phase_offered_bars[i], 0, 0);
+        lv_obj_set_style_radius(ui.car.phase_offered_bars[i], 2, 0);
+        lv_obj_set_style_pad_all(ui.car.phase_offered_bars[i], 0, 0);
+        lv_obj_add_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN); // Start hidden
+    }
+    
+    // Create actual charging current bars (top layer, full green)
+    for (int i = 0; i < 3; i++) {
+        int phaseBarX = i * (phaseBarWidth + phaseBarSpacing);
+        
+        ui.car.phase_bars[i] = lv_obj_create(container);
+        lv_obj_set_pos(ui.car.phase_bars[i], phaseBarX, phaseBarY);
+        lv_obj_set_size(ui.car.phase_bars[i], 0, phaseBarHeight); // Start with 0 width
+        lv_obj_set_style_bg_color(ui.car.phase_bars[i], lv_color_hex(COLOR_BAR_GENERATION), 0); // Full green
+        lv_obj_set_style_bg_opa(ui.car.phase_bars[i], LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(ui.car.phase_bars[i], 0, 0);
+        lv_obj_set_style_radius(ui.car.phase_bars[i], 2, 0);
+        lv_obj_set_style_pad_all(ui.car.phase_bars[i], 0, 0);
+        lv_obj_add_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN); // Start hidden
+    }
+
+    // SoC bar (moved down by 20px from 50 to 70, then up 5px to 65)
     ui.car.soc_bar = lv_bar_create(container);
     lv_obj_set_size(ui.car.soc_bar, SCREEN_WIDTH - (4 * PADDING) - 16, 20);
-    lv_obj_set_pos(ui.car.soc_bar, 0, 50);
+    lv_obj_set_pos(ui.car.soc_bar, 0, 65);
     lv_bar_set_value(ui.car.soc_bar, 35, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(ui.car.soc_bar, lv_color_hex(0xE0E0E0), LV_PART_MAIN);
     lv_obj_set_style_bg_color(ui.car.soc_bar, lv_color_hex(0x4CAF50), LV_PART_INDICATOR);
     lv_obj_set_style_radius(ui.car.soc_bar, 8, LV_PART_MAIN);
     lv_obj_set_style_radius(ui.car.soc_bar, 8, LV_PART_INDICATOR);
     
-    // Plan SoC marker (smaller, darker line)
+    // Plan SoC marker (smaller, darker line) - moved down 20px then up 5px
     ui.car.plan_soc_marker = lv_obj_create(container);
     lv_obj_set_size(ui.car.plan_soc_marker, 2, 20);
-    lv_obj_set_pos(ui.car.plan_soc_marker, 0, 50); // Aligned with bar
+    lv_obj_set_pos(ui.car.plan_soc_marker, 0, 65); // Aligned with bar
     lv_obj_set_style_bg_color(ui.car.plan_soc_marker, lv_color_hex(0x333333), 0);
     lv_obj_set_style_border_width(ui.car.plan_soc_marker, 0, 0);
     lv_obj_set_style_radius(ui.car.plan_soc_marker, 1, 0);
     lv_obj_add_flag(ui.car.plan_soc_marker, LV_OBJ_FLAG_HIDDEN); // Initially hidden
     
-    // Limit SoC marker (larger, bar-colored with rounded edges)
+    // Limit SoC marker (larger, bar-colored with rounded edges) - moved down 20px then up 5px
     ui.car.limit_soc_marker = lv_obj_create(container);
     lv_obj_set_size(ui.car.limit_soc_marker, 6, 28);
-    lv_obj_set_pos(ui.car.limit_soc_marker, 0, 46); // Slightly above bar
+    lv_obj_set_pos(ui.car.limit_soc_marker, 0, 61); // Slightly above bar
     lv_obj_set_style_bg_color(ui.car.limit_soc_marker, lv_color_hex(0x4CAF50), 0); // Same as bar color
     lv_obj_set_style_border_width(ui.car.limit_soc_marker, 0, 0);
     lv_obj_set_style_radius(ui.car.limit_soc_marker, 3, 0); // Rounded edges
@@ -729,41 +850,54 @@ void createUI() {
     styleContainerWithBorder(ui.upper_container);
     lv_obj_set_style_pad_all(ui.upper_container, PADDING, 0);
     
-    // Create columns
-    lv_obj_t* in_column = createColumn(ui.upper_container, "In", PADDING);
-    lv_obj_t* out_column = createColumn(ui.upper_container, "Out", COLUMN_WIDTH + (2 * PADDING));
+    // Create columns (IN with header, OUT without - we'll add OUT label separately)
+    lv_obj_t* in_column = createColumn(ui.upper_container, "In", PADDING, true);
+    lv_obj_t* out_column = createColumn(ui.upper_container, "Out", COLUMN_WIDTH + (2 * PADDING), false);
     
-    // Create composite bars aligned with the right edge of value columns
-    // Value2 column ends at position 161 + 60 = 221, so bars should end there too
-    int barWidth = 170; // Increased width by 40px
-    int barStartX = 221 - barWidth; // Right-align to value column end (51px from left)
+    // Calculate bar dimensions - center bars horizontally
+    // Total usable width minus padding on both sides
+    int totalUsableWidth = SCREEN_WIDTH - (4 * PADDING);
+    int barWidth = 360; // Fixed width for centered bars
+    int barStartX = (SCREEN_WIDTH - barWidth) / 2; // Center horizontally
     
-    ui.in_bar.container = createCompositeBar(in_column, barStartX, 2, barWidth, 20);
-    ui.in_bar.generation_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GENERATION));
-    ui.in_bar.battery_out_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_BATTERY_OUT));
-    ui.in_bar.grid_in_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GRID_IN));
+    // OUT label position (right side, aligned with value columns)
+    int outLabelX = SCREEN_WIDTH - (3 * PADDING) - 60; // Right-aligned
     
-    ui.out_bar.container = createCompositeBar(out_column, barStartX, 2, barWidth, 20);
-    ui.out_bar.consumption_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_CONSUMPTION));
-    ui.out_bar.loadpoint_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_LOADPOINT));
-    ui.out_bar.battery_in_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_BATTERY_IN));
-    ui.out_bar.grid_out_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_GRID_OUT));
+    // Create IN bar centered at top
+    ui.in_bar.container = createCompositeBar(ui.upper_container, barStartX, 2, barWidth, 20);
+    ui.in_bar.generation_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GENERATION), &ui.in_bar.generation_label);
+    ui.in_bar.battery_out_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_BATTERY_OUT), &ui.in_bar.battery_out_label);
+    ui.in_bar.grid_in_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GRID_IN), &ui.in_bar.grid_in_label);
     
-    // Create energy rows (positioned closer to headers since bars are inline)
-    createEnergyRow(in_column, "Erzeugung", "", "0W", 30, 
+    // Create OUT bar below IN bar (offset by bar height + gap)
+    int outBarY = 2 + 20 + 4; // IN bar Y + height + gap
+    ui.out_bar.container = createCompositeBar(ui.upper_container, barStartX, outBarY, barWidth, 20);
+    ui.out_bar.consumption_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_CONSUMPTION), &ui.out_bar.consumption_label);
+    ui.out_bar.loadpoint_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_LOADPOINT), &ui.out_bar.loadpoint_label);
+    ui.out_bar.battery_in_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_BATTERY_IN), &ui.out_bar.battery_in_label);
+    ui.out_bar.grid_out_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_GRID_OUT), &ui.out_bar.grid_out_label);
+    
+    // Create OUT label right-aligned, vertically aligned with OUT bar
+    lv_obj_t* out_header = lv_label_create(ui.upper_container);
+    lv_label_set_text(out_header, "Out");
+    styleLabelHeader(out_header);
+    positionAndAlign(out_header, outLabelX, outBarY, 60, LV_TEXT_ALIGN_RIGHT);
+    
+    // Create energy rows (moved down by 30px: from 30/52/74/96 to 60/82/104/126)
+    createEnergyRow(in_column, "Erzeugung", "", "0W", 60, 
                     &ui.generation.desc, &ui.generation.value1, &ui.generation.value2);
-    createEnergyRow(in_column, "Batterie entladen", "", "0W", 52, 
+    createEnergyRow(in_column, "Batterie entladen", "", "0W", 82, 
                     &ui.battery_discharge.desc, &ui.battery_discharge.value1, &ui.battery_discharge.value2);
-    createEnergyRow(in_column, "Netzbezug", "", "0W", 74, 
+    createEnergyRow(in_column, "Netzbezug", "", "0W", 104, 
                     &ui.grid_feed.desc, &ui.grid_feed.value1, &ui.grid_feed.value2);
 
-    createEnergyRow(out_column, "Verbrauch", "", "0W", 30, 
+    createEnergyRow(out_column, "Verbrauch", "", "0W", 60, 
                     &ui.consumption.desc, &ui.consumption.value1, &ui.consumption.value2);
-    createEnergyRow(out_column, "Ladepunkt", "", "0W", 52, 
+    createEnergyRow(out_column, "Ladepunkt", "", "0W", 82, 
                     &ui.loadpoint.desc, &ui.loadpoint.value1, &ui.loadpoint.value2);
-    createEnergyRow(out_column, "Batterie laden", "", "0W", 74, 
+    createEnergyRow(out_column, "Batterie laden", "", "0W", 104, 
                     &ui.battery_charge.desc, &ui.battery_charge.value1, &ui.battery_charge.value2);
-    createEnergyRow(out_column, "Einspeisung", "", "5W", 96, 
+    createEnergyRow(out_column, "Einspeisung", "", "5W", 126, 
                     &ui.grid_feedin.desc, &ui.grid_feedin.value1, &ui.grid_feedin.value2);
     
     // Lower container
@@ -784,7 +918,8 @@ void createUI() {
 
 // Update UI with current data
 void updateUI() {
-    int barMaxWidth = 170; // Match increased bar width used in createUI
+    // Read actual bar width dynamically from container
+    int barMaxWidth = ui.in_bar.container ? lv_obj_get_width(ui.in_bar.container) : 360;
     
     // Update generation (PV)
     lv_label_set_text(ui.generation.value2, formatPower(data.pvPower).c_str());
@@ -795,7 +930,7 @@ void updateUI() {
     lv_label_set_text(ui.generation.value1, formatEnergy(scaledSolarForecastEnergy).c_str());
     
     // Apply conditional formatting for generation row
-    lv_color_t genColor = (data.pvPower == 0) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
+    lv_color_t genColor = (fabs(data.pvPower) < POWER_ACTIVE_THRESHOLD) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
     lv_obj_set_style_text_color(ui.generation.desc, genColor, 0);
     lv_obj_set_style_text_color(ui.generation.value1, genColor, 0);
     lv_obj_set_style_text_color(ui.generation.value2, genColor, 0);
@@ -803,12 +938,12 @@ void updateUI() {
     // Update consumption (house load)
     lv_label_set_text(ui.consumption.value2, formatPower(data.homePower).c_str());
     // Apply conditional formatting for consumption row
-    lv_color_t consColor = (data.homePower == 0) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
+    lv_color_t consColor = (fabs(data.homePower) < POWER_ACTIVE_THRESHOLD) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
     lv_obj_set_style_text_color(ui.consumption.desc, consColor, 0);
     lv_obj_set_style_text_color(ui.consumption.value2, consColor, 0);
     
     // Update battery discharge/charge based on direction
-    if (data.batteryPower > 0) { // Discharging (positive values)
+    if (data.batteryPower > POWER_ACTIVE_THRESHOLD) { // Discharging (positive and above threshold)
         lv_label_set_text(ui.battery_discharge.value1, formatPercentage(data.batterySoc).c_str());
         lv_label_set_text(ui.battery_discharge.value2, formatPower(data.batteryPower).c_str());
         lv_label_set_text(ui.battery_charge.value1, formatPercentage(data.batterySoc).c_str());
@@ -820,46 +955,62 @@ void updateUI() {
         lv_obj_set_style_text_color(ui.battery_charge.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
         lv_obj_set_style_text_color(ui.battery_charge.value1, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
         lv_obj_set_style_text_color(ui.battery_charge.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
-    } else { // Charging (negative values)
+    } else if (data.batteryPower < -POWER_ACTIVE_THRESHOLD) { // Charging (negative and above threshold)
+        float chargePower = -data.batteryPower;
         lv_label_set_text(ui.battery_charge.value1, formatPercentage(data.batterySoc).c_str());
-        lv_label_set_text(ui.battery_charge.value2, formatPower(-data.batteryPower).c_str());
+        lv_label_set_text(ui.battery_charge.value2, formatPower(chargePower).c_str());
         lv_label_set_text(ui.battery_discharge.value1, formatPercentage(data.batterySoc).c_str());
         lv_label_set_text(ui.battery_discharge.value2, formatPower(0).c_str());
         // Apply conditional formatting
-        lv_color_t chargeColor = (data.batteryPower == 0) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
-        lv_obj_set_style_text_color(ui.battery_charge.desc, chargeColor, 0);
-        lv_obj_set_style_text_color(ui.battery_charge.value1, chargeColor, 0);
-        lv_obj_set_style_text_color(ui.battery_charge.value2, chargeColor, 0);
+        lv_obj_set_style_text_color(ui.battery_charge.desc, lv_color_hex(COLOR_TEXT_VALUE), 0);
+        lv_obj_set_style_text_color(ui.battery_charge.value1, lv_color_hex(COLOR_TEXT_VALUE), 0);
+        lv_obj_set_style_text_color(ui.battery_charge.value2, lv_color_hex(COLOR_TEXT_VALUE), 0);
         lv_obj_set_style_text_color(ui.battery_discharge.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
         lv_obj_set_style_text_color(ui.battery_discharge.value1, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
         lv_obj_set_style_text_color(ui.battery_discharge.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+    } else { // Below threshold -> dim both, show 0W movement
+        lv_label_set_text(ui.battery_discharge.value1, formatPercentage(data.batterySoc).c_str());
+        lv_label_set_text(ui.battery_discharge.value2, formatPower(0).c_str());
+        lv_label_set_text(ui.battery_charge.value1, formatPercentage(data.batterySoc).c_str());
+        lv_label_set_text(ui.battery_charge.value2, formatPower(0).c_str());
+        lv_obj_set_style_text_color(ui.battery_discharge.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.battery_discharge.value1, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.battery_discharge.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.battery_charge.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.battery_charge.value1, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.battery_charge.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
     }
     
     // Update grid feed/feed-in based on direction
-    if (data.gridPower > 0) { // Consuming from grid
+    if (data.gridPower > POWER_ACTIVE_THRESHOLD) { // Consuming from grid (above threshold)
         lv_label_set_text(ui.grid_feed.value2, formatPower(data.gridPower).c_str());
         lv_label_set_text(ui.grid_feedin.value2, formatPower(0).c_str());
-        // Apply conditional formatting
         lv_obj_set_style_text_color(ui.grid_feed.desc, lv_color_hex(COLOR_TEXT_VALUE), 0);
         lv_obj_set_style_text_color(ui.grid_feed.value2, lv_color_hex(COLOR_TEXT_VALUE), 0);
         lv_obj_set_style_text_color(ui.grid_feedin.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
         lv_obj_set_style_text_color(ui.grid_feedin.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
-    } else { // Feeding into grid
-        lv_label_set_text(ui.grid_feedin.value2, formatPower(-data.gridPower).c_str());
+    } else if (data.gridPower < -POWER_ACTIVE_THRESHOLD) { // Feeding into grid (above threshold)
+        float feedinPower = -data.gridPower;
+        lv_label_set_text(ui.grid_feedin.value2, formatPower(feedinPower).c_str());
         lv_label_set_text(ui.grid_feed.value2, formatPower(0).c_str());
-        // Apply conditional formatting
-        lv_color_t feedinColor = (data.gridPower == 0) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
-        lv_obj_set_style_text_color(ui.grid_feedin.desc, feedinColor, 0);
-        lv_obj_set_style_text_color(ui.grid_feedin.value2, feedinColor, 0);
+        lv_obj_set_style_text_color(ui.grid_feedin.desc, lv_color_hex(COLOR_TEXT_VALUE), 0);
+        lv_obj_set_style_text_color(ui.grid_feedin.value2, lv_color_hex(COLOR_TEXT_VALUE), 0);
         lv_obj_set_style_text_color(ui.grid_feed.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
         lv_obj_set_style_text_color(ui.grid_feed.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+    } else { // Below threshold
+        lv_label_set_text(ui.grid_feed.value2, formatPower(0).c_str());
+        lv_label_set_text(ui.grid_feedin.value2, formatPower(0).c_str());
+        lv_obj_set_style_text_color(ui.grid_feed.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.grid_feed.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.grid_feedin.desc, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
+        lv_obj_set_style_text_color(ui.grid_feedin.value2, lv_color_hex(COLOR_TEXT_SECONDARY), 0);
     }
     
     // Update loadpoint
     float total_lp_power = data.lp1.chargePower + data.lp2.chargePower;
     lv_label_set_text(ui.loadpoint.value2, formatPower(total_lp_power).c_str());
     // Apply conditional formatting for loadpoint row
-    lv_color_t lpColor = (total_lp_power == 0) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
+    lv_color_t lpColor = (fabs(total_lp_power) < POWER_ACTIVE_THRESHOLD) ? lv_color_hex(COLOR_TEXT_SECONDARY) : lv_color_hex(COLOR_TEXT_VALUE);
     lv_obj_set_style_text_color(ui.loadpoint.desc, lpColor, 0);
     lv_obj_set_style_text_color(ui.loadpoint.value2, lpColor, 0);
     
@@ -871,7 +1022,8 @@ void updateUI() {
         data.gridPower > 0 ? data.gridPower : 0
     };
     lv_obj_t* inSegments[3] = {ui.in_bar.generation_segment, ui.in_bar.battery_out_segment, ui.in_bar.grid_in_segment};
-    updateCompositeBar(ui.in_bar.container, inSegments, inValues, 3, barMaxWidth);
+    lv_obj_t* inLabels[3] = {ui.in_bar.generation_label, ui.in_bar.battery_out_label, ui.in_bar.grid_in_label};
+    updateCompositeBar(ui.in_bar.container, inSegments, inLabels, inValues, 3, barMaxWidth);
     
     // OUT bar: house consumption, car charging, battery charging, grid feed-in
     float outValues[4] = {
@@ -881,7 +1033,8 @@ void updateUI() {
         data.gridPower < 0 ? -data.gridPower : 0
     };
     lv_obj_t* outSegments[4] = {ui.out_bar.consumption_segment, ui.out_bar.loadpoint_segment, ui.out_bar.battery_in_segment, ui.out_bar.grid_out_segment};
-    updateCompositeBar(ui.out_bar.container, outSegments, outValues, 4, barMaxWidth);
+    lv_obj_t* outLabels[4] = {ui.out_bar.consumption_label, ui.out_bar.loadpoint_label, ui.out_bar.battery_in_label, ui.out_bar.grid_out_label};
+    updateCompositeBar(ui.out_bar.container, outSegments, outLabels, outValues, 4, barMaxWidth);
     
     // Update car section (using active loadpoint data)
     auto* activeLP = getActiveLoadpoint();
@@ -909,17 +1062,51 @@ void updateUI() {
         lv_label_set_text(ui.car.soc_value, "---");
     }
     
-    // Update plan SoC marker
+    // Update phase current bars
+    int phaseBarWidth = 30;
+    for (int i = 0; i < 3; i++) {
+        if (i < activeLP->phasesActive && activeLP->maxCurrent > 0) {
+            // Show grey background bar (full width)
+            lv_obj_clear_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN);
+            
+            // Calculate offered current bar width (middle layer, dimmed green)
+            float offeredRatio = activeLP->offeredCurrent / activeLP->maxCurrent;
+            if (offeredRatio > 1.0) offeredRatio = 1.0;
+            int offeredWidth = (int)(offeredRatio * phaseBarWidth);
+            if (offeredWidth < 1 && activeLP->offeredCurrent > 0.1) offeredWidth = 1;
+            lv_obj_set_width(ui.car.phase_offered_bars[i], offeredWidth);
+            lv_obj_clear_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN);
+            
+            // Calculate and show actual charging current bar (top layer, full green)
+            if (activeLP->chargeCurrents[i] > 0) {
+                float currentRatio = activeLP->chargeCurrents[i] / activeLP->maxCurrent;
+                if (currentRatio > 1.0) currentRatio = 1.0;
+                int actualWidth = (int)(currentRatio * phaseBarWidth);
+                if (actualWidth < 1 && activeLP->chargeCurrents[i] > 0.1) actualWidth = 1; // Minimum visibility
+                lv_obj_set_width(ui.car.phase_bars[i], actualWidth);
+                lv_obj_clear_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        } else {
+            // Hide all bars for inactive phases or when maxCurrent not available
+            lv_obj_add_flag(ui.car.phase_bg_bars[i], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui.car.phase_offered_bars[i], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(ui.car.phase_bars[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    
+    // Update plan SoC marker (Y position updated to 65)
     if (activeLP->effectivePlanSoc > 0) { // Only show if > 0, not just >= 0
         int barWidth = SCREEN_WIDTH - (4 * PADDING) - 16;
         int markerX = (activeLP->effectivePlanSoc / 100.0) * barWidth - 1; // Center the 2px marker
-        lv_obj_set_pos(ui.car.plan_soc_marker, markerX, 50);
+        lv_obj_set_pos(ui.car.plan_soc_marker, markerX, 65);
         lv_obj_clear_flag(ui.car.plan_soc_marker, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(ui.car.plan_soc_marker, LV_OBJ_FLAG_HIDDEN);
     }
     
-    // Update limit SoC marker
+    // Update limit SoC marker (Y position updated to 61)
     if (activeLP->effectiveLimitSoc >= 0) {
         int barWidth = SCREEN_WIDTH - (4 * PADDING) - 16;
         int markerX = (activeLP->effectiveLimitSoc / 100.0) * barWidth - 3; // Center the 6px marker (offset by half width)
@@ -928,7 +1115,7 @@ void updateUI() {
         if (markerX < 0) markerX = 0;
         if (markerX > barWidth - 6) markerX = barWidth - 6;
         
-        lv_obj_set_pos(ui.car.limit_soc_marker, markerX, 46);
+        lv_obj_set_pos(ui.car.limit_soc_marker, markerX, 61);
         lv_obj_clear_flag(ui.car.limit_soc_marker, LV_OBJ_FLAG_HIDDEN);
         
     } else {
@@ -1149,6 +1336,16 @@ void setup() {
             delay(500);
             now = time(nullptr);
             attempts++;
+            // Feed watchdog and keep UI alive while waiting for time
+            esp_task_wdt_reset();
+            lv_task_handler();
+            yield();
+            // Provide a progress update every second attempt (~1s)
+            if (attempts % 2 == 0) {
+                char syncMsg[48];
+                snprintf(syncMsg, sizeof(syncMsg), "Synchronizing time (%d/20)", attempts);
+                updateWiFiStatus(syncMsg, ssid, WiFi.localIP().toString());
+            }
         }
         Serial.printf("Time synchronized: %s", ctime(&now));
         
