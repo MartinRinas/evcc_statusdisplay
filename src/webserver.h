@@ -12,6 +12,9 @@
 #include "config.h"
 #include "logging.h"
 
+// Demo mode flag (defined in main sketch)
+extern bool demoMode;
+
 // Forward declaration of EVCCData
 extern EVCCData data;
 
@@ -31,10 +34,12 @@ void setupWebServer(AsyncWebServer& server) {
         html += "<p><strong>Free Heap:</strong> " + String(ESP.getFreeHeap()) + " bytes</p>";
         html += "<p><strong>Uptime:</strong> " + String(millis() / 1000) + " seconds</p>";
         html += "<p><strong>Debug Mode:</strong> <span class='status'>" + String(debugEnabled ? "ON" : "OFF") + "</span></p>";
+        html += "<p><strong>Demo Mode:</strong> <span class='status'>" + String(demoMode ? "ON" : "OFF") + "</span></p>";
         html += "</div><div class='card'><h2>Quick Links</h2>";
         html += "<a href='/logs' class='btn'>View Logs</a> ";
         html += "<a href='/status' class='btn'>JSON Status</a> ";
         html += "<a href='/debug/toggle' class='btn'>Toggle Debug</a>";
+        html += String(" <a href='/demo/toggle' class='btn'>") + (demoMode?"Live Mode":"Demo Mode") + "</a>";
         html += "</div></body></html>";
         request->send(200, "text/html", html);
     });
@@ -135,6 +140,16 @@ void setupWebServer(AsyncWebServer& server) {
         html += "h1{color:#4CAF50;}</style></head><body>";
         html += "<h1>✓ " + message + "</h1>";
         html += "<p>Redirecting to status page...</p></body></html>";
+        request->send(200, "text/html", html);
+    });
+
+    // Demo mode toggle
+    server.on("/demo/toggle", HTTP_GET, [](AsyncWebServerRequest *request){
+        demoMode = !demoMode;
+        String message = String("Demo mode is now ") + (demoMode?"ON":"OFF");
+        logMessage(message, true);
+        String html = "<!DOCTYPE html><html><head><title>Demo Toggle</title><meta http-equiv='refresh' content='1;url=/'></head><body style='font-family:Arial;text-align:center;margin-top:60px'>";
+        html += "<h1>" + message + "</h1><p>Redirecting...</p></body></html>";
         request->send(200, "text/html", html);
     });
     

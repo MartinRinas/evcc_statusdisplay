@@ -4,6 +4,32 @@
 // Global UI instance defined elsewhere
 extern UIElements ui;
 
+// Helper: Convert RGB565 to RGB888
+static void rgb565_to_rgb888(uint16_t rgb565, uint8_t& r, uint8_t& g, uint8_t& b) {
+    r = ((rgb565 >> 11) & 0x1F) * 255 / 31;  // 5 bits red
+    g = ((rgb565 >> 5) & 0x3F) * 255 / 63;   // 6 bits green
+    b = (rgb565 & 0x1F) * 255 / 31;          // 5 bits blue
+}
+
+// Helper: Calculate relative luminance from lv_color_t
+static float getLuminanceFromLvColor(lv_color_t color) {
+    uint8_t r, g, b;
+    // LVGL stores colors in RGB565 format in the 'full' field
+    rgb565_to_rgb888(color.full, r, g, b);
+    // Simplified luminance formula (ITU BT.709)
+    return (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255.0f;
+}
+
+// Helper: Choose text color (BS_GRAY_DARK or white) based on background luminance
+static uint32_t getContrastTextColor(lv_color_t bgColor) {
+    uint8_t r, g, b;
+    rgb565_to_rgb888(bgColor.full, r, g, b);
+    float lum = getLuminanceFromLvColor(bgColor);
+    uint32_t textColor = (lum > 0.5f) ? BS_GRAY_DARK : 0xFFFFFF;
+    
+    return textColor;
+}
+
 void styleLabel(lv_obj_t* label, const lv_font_t* font, lv_color_t color) {
     lv_obj_set_style_text_font(label, font, 0);
     lv_obj_set_style_text_color(label, color, 0);
@@ -86,7 +112,9 @@ lv_obj_t* createBarSegment(lv_obj_t* parent, lv_color_t color, lv_obj_t** label_
     if (label_out) {
         *label_out = lv_label_create(segment);
         lv_obj_set_style_text_font(*label_out, &lv_font_montserrat_12, 0);
-        lv_obj_set_style_text_color(*label_out, lv_color_hex(0xFFFFFF), 0);
+        // Dynamic contrast: choose text color based on segment background
+        uint32_t textColor = getContrastTextColor(color);
+        lv_obj_set_style_text_color(*label_out, lv_color_hex(textColor), 0);
         lv_obj_set_style_text_align(*label_out, LV_TEXT_ALIGN_CENTER, 0);
         lv_label_set_text(*label_out, "");
         lv_obj_center(*label_out);
@@ -122,6 +150,10 @@ void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, lv_obj_t** lab
             if (labels && labels[i]) {
                 if (segmentWidth >= minWidthForText) {
                     lv_label_set_text(labels[i], formatPower(values[i]).c_str());
+                    // Update label color dynamically based on current segment background
+                    lv_color_t segmentColor = lv_obj_get_style_bg_color(segments[i], 0);
+                    uint32_t textColor = getContrastTextColor(segmentColor);
+                    lv_obj_set_style_text_color(labels[i], lv_color_hex(textColor), 0);
                     lv_obj_center(labels[i]);
                     lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
                 } else {

@@ -64,6 +64,9 @@ RotationState rotationState;
 // Web server for status/logs
 AsyncWebServer server(WEB_SERVER_PORT);
 
+// Demo mode flag: when true, API base switches to https://demo.evcc.io
+bool demoMode = false;
+
 // Log buffer globals (definitions - declarations in logging.h)
 LogEntry logBuffer[LOG_BUFFER_SIZE];
 int logHead = 0;
@@ -131,8 +134,13 @@ bool connectWiFi() {
 
 bool httpGet(const char* path, String& response) {
     HTTPClient http;
-    String url = "http://" + String(evcc_host) + ":" + String(evcc_port) + String(path);
-    logMessage("Requesting: " + url);
+    String url;
+    if (demoMode) {
+        url = String("https://demo.evcc.io") + String(path);
+    } else {
+        url = String("http://") + evcc_host + ":" + String(evcc_port) + String(path);
+    }
+    logMessage(String("Requesting [") + (demoMode?"DEMO":"LIVE") + "]: " + url);
     http.begin(url);
     http.setTimeout(HTTP_TIMEOUT);
     int httpCode = http.GET();

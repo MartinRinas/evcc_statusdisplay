@@ -52,22 +52,52 @@
 #endif
 
 // Color definitions
+// -----------------------------------------------------------------------------
+// Base Color Palette (extracted from EVCC / design tokens)
+// Keeping raw palette separate from semantic/use-case COLOR_* assignments.
+// Notes:
+//  - Original CSS custom property names used dashes; converted here to
+//    UPPER_SNAKE_CASE for valid C identifiers.
+//  - Values ending with 'ff' (RGBA with full alpha) had the alpha removed; if
+//    you later need alpha, handle it explicitly where used.
+//  - *_RGB macros provided for convenience (comma-separated triplets) plus
+//    individual R/G/B components for selective use.
+// -----------------------------------------------------------------------------
+#define EVCC_GREEN             0xBAFFCB  // --evcc-green: #baffcb
+#define EVCC_DARK_GREEN        0x0FDE41  // --evcc-dark-green: #0fde41ff
+#define EVCC_DARKER_GREEN      0x0BA631  // --evcc-darker-green: #0ba631ff
+#define EVCC_DARKEST_GREEN     0x076F20  // --evcc-darkest-green: #076f20ff
+#define EVCC_YELLOW            0xFAF000  // --evcc-yellow: #faf000
+#define EVCC_DARK_YELLOW       0xBBB400  // --evcc-dark-yellow: #bbb400
+#define EVCC_ORANGE            0xFF9000  // --evcc-orange: #ff9000
+#define EVCC_RED               0xFC440F  // --evcc-red: #fc440f
+#define BS_GRAY_DEEP           0x010322  // --bs-gray-deep: #010322
+#define BS_GRAY_DARK           0x28293E  // --bs-gray-dark: #28293e
+#define BS_GRAY_DARKER         0x151630  // --bs-gray-darker: #151630
+#define BS_GRAY_MEDIUM         0x93949E  // --bs-gray-medium: #93949e
+#define BS_GRAY_LIGHT          0xB5B6C3  // --bs-gray-light: #b5b6c3
+#define BS_GRAY_BRIGHT         0xF3F3F7  // --bs-gray-bright: #f3f3f7
+#define BS_GRAY_BRIGHTER       0xF9F9FB  // --bs-gray-brighter: #f9f9fb
+
+// -----------------------------------------------------------------------------
+// Existing semantic color assignments (can be remapped to palette above).
+// -----------------------------------------------------------------------------
 #define COLOR_GRID_BG     0xf3f3f7
-#define COLOR_PANEL_BG    0xFFFFFF
+#define COLOR_PANEL_BG    BS_GRAY_BRIGHT //0xffffff
 #define COLOR_PANEL_BORDER 0xe0e0e0
-#define COLOR_TEXT_PRIMARY 0x000000
+#define COLOR_TEXT_PRIMARY BS_GRAY_DARK //0x000000
 #define COLOR_TEXT_SECONDARY 0x93949e
-#define COLOR_TEXT_VALUE  0x333333
-#define COLOR_PULSE_BORDER 0xFF9800  // Orange charging animation border
+#define COLOR_TEXT_VALUE  BS_GRAY_DARK // 0x333333
+//#define COLOR_PULSE_BORDER 0xFF9800  // Orange charging animation border
 
 // Bar diagram colors
-#define COLOR_BAR_GENERATION  0x4CAF50   // Green for PV generation
-#define COLOR_BAR_BATTERY_OUT 0xFF9800   // Orange for battery discharge
-#define COLOR_BAR_GRID_IN     0xF44336   // Red for grid consumption
-#define COLOR_BAR_CONSUMPTION 0x2196F3   // Blue for house consumption
-#define COLOR_BAR_LOADPOINT   0x9C27B0   // Purple for car charging
-#define COLOR_BAR_BATTERY_IN  0xFFEB3B   // Yellow for battery charging
-#define COLOR_BAR_GRID_OUT    0x00BCD4   // Cyan for grid feed-in
+#define COLOR_BAR_GENERATION  EVCC_DARK_GREEN //0x4CAF50   // Green for PV generation
+#define COLOR_BAR_BATTERY_OUT EVCC_DARKER_GREEN //0xFF9800   // Orange for battery discharge
+#define COLOR_BAR_GRID_IN     BS_GRAY_DARK //0xF44336   // Red for grid consumption
+#define COLOR_BAR_CONSUMPTION EVCC_DARK_GREEN //0x2196F3   // Blue for house consumption
+#define COLOR_BAR_LOADPOINT   EVCC_DARKEST_GREEN //0x9C27B0   // Purple for car charging
+#define COLOR_BAR_BATTERY_IN  EVCC_DARKER_GREEN //0xFFEB3B   // Yellow for battery charging
+#define COLOR_BAR_GRID_OUT    EVCC_YELLOW //0x00BCD4   // Cyan for grid feed-in
 #define COLOR_BAR_BACKGROUND  0xE0E0E0   // Light gray for bar background
 
 // Style configuration constants
