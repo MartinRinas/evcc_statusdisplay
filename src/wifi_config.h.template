@@ -1,0 +1,20 @@
+/*
+ * WiFi Configuration Template for EVCC Display
+ * 
+ * 1. Copy this file to 'wifi_config.h' in the same directory
+ * 2. Modify the credentials below for your setup
+ * 3. The actual wifi_config.h will be ignored by git
+ */
+
+#ifndef WIFI_CONFIG_H
+#define WIFI_CONFIG_H
+
+// WiFi credentials - CHANGE THESE!
+const char* WIFI_SSID = "your_wifi_network_name";
+const char* WIFI_PASSWORD = "your_wifi_password";
+
+// EVCC server configuration - CHANGE THESE!
+const char* EVCC_HOST = "192.168.1.100";  // Your EVCC server IP address
+const int EVCC_PORT = 7070;               // EVCC server port (usually 7070)
+
+#endif // WIFI_CONFIG_H
