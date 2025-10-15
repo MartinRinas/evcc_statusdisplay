@@ -12,9 +12,9 @@
 #include <lvgl.h>
 #include <TFT_eSPI.h>
 #include <esp_task_wdt.h>
-#include <ESPAsyncWebServer.h>
 #include "wifi_config.h"
 #include "config.h"
+<<<<<<< HEAD
 #include "logging.h"
 #include "webserver.h"
 #include "ui_helpers.h"
@@ -24,6 +24,8 @@
 bool httpGet(const char* path, String& response);
 bool connectWiFi();
 void startWebServer();
+=======
+>>>>>>> parent of b457a54 (status webserver)
 
 // Threshold (in Watts) below which values are considered inactive for dimming
 #ifndef POWER_ACTIVE_THRESHOLD
@@ -61,6 +63,7 @@ int stripe_offset = 0;
 // Loadpoint rotation state
 RotationState rotationState;
 
+<<<<<<< HEAD
 // Web server for status/logs
 AsyncWebServer server(WEB_SERVER_PORT);
 
@@ -75,6 +78,67 @@ uint32_t logDropped = 0;
 portMUX_TYPE logMux = portMUX_INITIALIZER_UNLOCKED;
 
 // UI element references (moved struct to ui_helpers.h)
+=======
+// UI element references
+struct UIElements {
+    lv_obj_t* screen;
+    lv_obj_t* upper_container;
+    lv_obj_t* lower_container;
+    
+    // Energy row labels (value1, value2) and composite bars
+    struct {
+        lv_obj_t* desc;
+        lv_obj_t* value1;
+        lv_obj_t* value2;
+    } generation, battery_discharge, grid_feed, consumption, loadpoint, battery_charge, grid_feedin;
+    
+    // Composite energy bars
+    struct {
+        lv_obj_t* container;
+        lv_obj_t* generation_segment;
+        lv_obj_t* battery_out_segment;
+        lv_obj_t* grid_in_segment;
+        lv_obj_t* generation_label;
+        lv_obj_t* battery_out_label;
+        lv_obj_t* grid_in_label;
+    } in_bar;
+    
+    struct {
+        lv_obj_t* container;
+        lv_obj_t* consumption_segment;
+        lv_obj_t* loadpoint_segment;
+        lv_obj_t* battery_in_segment;
+        lv_obj_t* grid_out_segment;
+        lv_obj_t* consumption_label;
+        lv_obj_t* loadpoint_label;
+        lv_obj_t* battery_in_label;
+        lv_obj_t* grid_out_label;
+    } out_bar;
+    
+    // Car section elements
+    struct {
+        lv_obj_t* title_label;
+        lv_obj_t* car_label;
+        lv_obj_t* power_label;
+        lv_obj_t* phase_bg_bars[3];      // Grey background bars (full width)
+        lv_obj_t* phase_offered_bars[3]; // Offered current bars (dimmed green)
+        lv_obj_t* phase_bars[3];         // Current phase bars (actual charging current, full green)
+        lv_obj_t* soc_bar;
+        lv_obj_t* plan_soc_marker;
+        lv_obj_t* limit_soc_marker;
+        lv_obj_t* soc_desc;
+        lv_obj_t* plan_desc;
+        lv_obj_t* limit_desc;
+        lv_obj_t* soc_value;
+        lv_obj_t* range_value;
+        lv_obj_t* ladedauer_value;
+        lv_obj_t* plan_value;
+        lv_obj_t* plan_soc_value;
+        lv_obj_t* ladelimit_value;
+    } car;
+};
+
+>>>>>>> parent of b457a54 (status webserver)
 UIElements ui;
 
 // (Styling and UI creation helper implementations moved to ui_helpers.*)
@@ -92,6 +156,7 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
     lv_disp_flush_ready(disp);
 }
 
+<<<<<<< HEAD
 // (UI update, formatting, rotation, stripe pattern logic moved to display_updates.*)
 
 // Network & web server functions (restored after refactor extraction)
@@ -99,6 +164,30 @@ void startWebServer() {
     setupWebServer(server);
     server.begin();
     logMessage("Web server started on port " + String(WEB_SERVER_PORT));
+=======
+// Get active loadpoint data based on rotation logic
+LoadpointData* getActiveLoadpoint() {
+    bool lp1Charging = data.lp1.charging;
+    bool lp2Charging = data.lp2.charging;
+    
+    // If only one is charging, show that one
+    if (lp1Charging && !lp2Charging) {
+        return &data.lp1;
+    }
+    if (lp2Charging && !lp1Charging) {
+        return &data.lp2;
+    }
+    
+    // If both charging or neither charging, rotate every 10 seconds
+    unsigned long now = millis();
+    if (now - rotationState.lastRotation >= ROTATION_INTERVAL) {
+        rotationState.currentLoadpoint = !rotationState.currentLoadpoint;
+        rotationState.lastRotation = now;
+        Serial.printf("Rotating to loadpoint %d\n", rotationState.currentLoadpoint ? 1 : 2);
+    }
+    
+    return rotationState.currentLoadpoint ? &data.lp1 : &data.lp2;
+>>>>>>> parent of b457a54 (status webserver)
 }
 
 bool connectWiFi() {
@@ -160,18 +249,351 @@ void initStripeStyle() {
 // Stripe pattern state tracking
 bool stripe_applied = false;
 
+<<<<<<< HEAD
 // (Stripe pattern logic moved)
 
 
 
 // (Composite bar / energy row / column / car section helpers now implemented in ui_helpers.cpp)
+=======
+// Apply or remove stripe pattern based on charging state
+void applyStripePattern(lv_obj_t* segment, bool charging) {
+    if (!segment) return;
+    
+    if (charging && !stripe_applied) {
+        // Apply stripe pattern when charging
+        lv_obj_add_style(segment, &stripe_style, LV_PART_INDICATOR);
+        stripe_applied = true;
+        Serial.println("Applied stripe pattern (charging)");
+    } else if (!charging && stripe_applied) {
+        // Remove stripe pattern when not charging
+        lv_obj_remove_style(segment, &stripe_style, LV_PART_INDICATOR);
+        stripe_applied = false;
+        Serial.println("Removed stripe pattern (not charging)");
+    }
+}
+
+
+
+// Create composite energy bar for IN/OUT sections
+lv_obj_t* createCompositeBar(lv_obj_t* parent, int x, int y, int width, int height) {
+    if (!parent) return nullptr;
+    
+    lv_obj_t* container = lv_obj_create(parent);
+    if (!container) return nullptr;
+    
+    lv_obj_set_pos(container, x, y);
+    lv_obj_set_size(container, width, height);
+    lv_obj_set_style_bg_color(container, lv_color_hex(COLOR_BAR_BACKGROUND), 0); // Grey background
+    lv_obj_set_style_bg_opa(container, LV_OPA_COVER, 0); // Opaque background
+    lv_obj_set_style_border_width(container, 0, 0); // Remove border
+    lv_obj_set_style_radius(container, 8, 0); // Rounded container
+    lv_obj_set_style_pad_all(container, 0, 0);
+    lv_obj_set_style_clip_corner(container, true, 0); // Clip children to rounded corners
+    lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_OFF); // Disable scrollbars
+    lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN); // Start hidden until data available
+    
+    return container;
+}
+
+// Create colored segment within composite bar with label
+lv_obj_t* createBarSegment(lv_obj_t* parent, lv_color_t color, lv_obj_t** label_out) {
+    if (!parent) return nullptr;
+    
+    lv_obj_t* segment = lv_obj_create(parent);
+    if (!segment) return nullptr;
+    
+    int parentHeight = lv_obj_get_height(parent);
+    
+    lv_obj_set_pos(segment, 0, 0);
+    lv_obj_set_size(segment, 0, parentHeight); // Start with zero width, full height
+    lv_obj_set_style_bg_color(segment, color, 0);
+    lv_obj_set_style_bg_opa(segment, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(segment, 0, 0);
+    lv_obj_set_style_radius(segment, 0, 0); // No radius - container handles rounding
+    lv_obj_set_style_pad_all(segment, 0, 0);
+    lv_obj_set_scrollbar_mode(segment, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_add_flag(segment, LV_OBJ_FLAG_HIDDEN); // Start hidden
+    
+    // Create label on segment for displaying power value
+    if (label_out) {
+        *label_out = lv_label_create(segment);
+        lv_obj_set_style_text_font(*label_out, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(*label_out, lv_color_hex(0xFFFFFF), 0); // White text
+        lv_obj_set_style_text_align(*label_out, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_text(*label_out, "");
+        lv_obj_center(*label_out);
+        lv_obj_add_flag(*label_out, LV_OBJ_FLAG_HIDDEN); // Start hidden
+    }
+    
+    return segment;
+}
+
+// Update composite bar with proportional segments
+void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, lv_obj_t** labels, float* values, int segmentCount, int barWidth) {
+    if (!container || !segments || !values) return;
+    
+    // Calculate total power for normalization
+    float totalPower = 0;
+    for (int i = 0; i < segmentCount; i++) {
+        if (values[i] > 0) {
+            totalPower += values[i];
+        }
+    }
+    
+    // Hide bar if no power
+    if (totalPower < 1.0) {
+        lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
+        // Hide all segments safely
+        for (int i = 0; i < segmentCount; i++) {
+            if (segments[i]) {
+                lv_obj_add_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
+            }
+            if (labels && labels[i]) {
+                lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        return;
+    }
+    
+    lv_obj_clear_flag(container, LV_OBJ_FLAG_HIDDEN);
+    
+    // Get container height dynamically
+    int containerHeight = lv_obj_get_height(container);
+    
+    // Minimum width to show text (approx 40px for "999W" with 12pt font)
+    const int minWidthForText = 40;
+    
+    // Position segments proportionally
+    int currentX = 0;
+    for (int i = 0; i < segmentCount; i++) {
+        if (!segments[i]) continue;
+        
+        if (values[i] > 0) {
+            // Calculate segment width based on proportion
+            int segmentWidth = (int)((values[i] / totalPower) * barWidth);
+            if (segmentWidth < 1) segmentWidth = 1; // Minimum 1px for visibility
+            
+            // Position and size segment
+            lv_obj_set_pos(segments[i], currentX, 0);
+            lv_obj_set_width(segments[i], segmentWidth);
+            lv_obj_set_height(segments[i], containerHeight); // Match container height dynamically
+            lv_obj_clear_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
+            
+            // Update label if provided and segment is wide enough
+            if (labels && labels[i]) {
+                if (segmentWidth >= minWidthForText) {
+                    lv_label_set_text(labels[i], formatPower(values[i]).c_str());
+                    lv_obj_center(labels[i]); // Re-center after text update
+                    lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                } else {
+                    lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            
+            currentX += segmentWidth;
+        } else {
+            // Hide segment if no power
+            lv_obj_add_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
+            if (labels && labels[i]) {
+                lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+    }
+}
+
+String formatEnergy(float wh) {
+    if (abs(wh) < 1000) {
+        return String((int)wh) + "Wh";
+    } else if (abs(wh) < 10000) {
+        return String(wh/1000.0, 1) + "kWh";
+    } else {
+        return String(wh/1000.0, 0) + "kWh";
+    }
+}
+
+String formatPercentage(float value) {
+    return value >= 0 ? String((int)value) + "%" : "---";
+}
+
+String formatDistance(float value) {
+    return value >= 0 ? String((int)value) + "km" : "-- km";
+}
+
+String formatPlanTime(const String& isoTime) {
+    if (isoTime.isEmpty() || isoTime.length() < 19) {
+        return "keiner";
+    }
+    
+    // Parse ISO 8601 format: "2025-10-12T05:00:00Z"
+    int year = isoTime.substring(0, 4).toInt();
+    int month = isoTime.substring(5, 7).toInt();
+    int day = isoTime.substring(8, 10).toInt();
+    int hour = isoTime.substring(11, 13).toInt();
+    int minute = isoTime.substring(14, 16).toInt();
+    
+    // Get current local time to determine if we're in DST
+    time_t now = time(nullptr);
+    struct tm* currentLocal = localtime(&now);
+    bool isDST = currentLocal->tm_isdst > 0;
+    
+    // Convert UTC to local time (Germany: CET=UTC+1, CEST=UTC+2)
+    int localHour = hour + (isDST ? 2 : 1);
+    int localDay = day;
+    int localMonth = month;
+    int localYear = year;
+    
+    // Handle day overflow
+    if (localHour >= 24) {
+        localHour -= 24;
+        localDay++;
+        
+        // Simple day overflow handling (good enough for near-future dates)
+        int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        if (localYear % 4 == 0 && (localYear % 100 != 0 || localYear % 400 == 0)) {
+            daysInMonth[1] = 29; // Leap year
+        }
+        
+        if (localDay > daysInMonth[localMonth - 1]) {
+            localDay = 1;
+            localMonth++;
+            if (localMonth > 12) {
+                localMonth = 1;
+                localYear++;
+            }
+        }
+    }
+    
+    // Calculate days difference from today
+    int todayYear = currentLocal->tm_year + 1900;
+    int todayMonth = currentLocal->tm_mon + 1;
+    int todayDay = currentLocal->tm_mday;
+    
+    // Simple day difference calculation (good for dates within a week)
+    int daysDiff = 0;
+    if (localYear == todayYear && localMonth == todayMonth) {
+        daysDiff = localDay - todayDay;
+    } else if (localYear > todayYear || (localYear == todayYear && localMonth > todayMonth)) {
+        daysDiff = 7; // Force to show date format for far future
+    } else {
+        daysDiff = -7; // Force to show date format for past
+    }
+    
+    // German day names
+    const char* germanDays[] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"};
+    
+    String dayString;
+    if (daysDiff == 0) {
+        dayString = "Heute";
+    } else if (daysDiff == 1) {
+        dayString = "Morgen";
+    } else if (daysDiff >= 2 && daysDiff < 7) {
+        // Calculate day of week for the target date
+        struct tm targetDate = {0};
+        targetDate.tm_year = localYear - 1900;
+        targetDate.tm_mon = localMonth - 1;
+        targetDate.tm_mday = localDay;
+        mktime(&targetDate); // This normalizes and calculates tm_wday
+        dayString = String(germanDays[targetDate.tm_wday]);
+    } else {
+        // Show date for dates outside the week
+        dayString = String(localDay) + "." + String(localMonth) + ".";
+    }
+    
+    // Format time as HH:MM
+    String timeString = "";
+    if (localHour < 10) timeString += "0";
+    timeString += String(localHour) + ":";
+    if (minute < 10) timeString += "0";
+    timeString += String(minute);
+    
+    return dayString + " " + timeString;
+}
+
+// WiFi connection
+bool connectWiFi() {
+    Serial.println("Connecting to WiFi...");
+    updateWiFiStatus("Connecting to WiFi...", ssid, "");
+    
+    WiFi.begin(ssid, password);
+    
+    int attempts = 0;
+    int maxAttempts = 40; // 20 seconds max (40 * 500ms)
+    while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
+        delay(500);
+        Serial.print(".");
+        // Feed watchdog and keep LVGL/UI responsive while blocking here
+        esp_task_wdt_reset();
+        lv_task_handler();
+        yield();
+
+        // Update display with current attempt counter
+        char progressText[40];
+        snprintf(progressText, sizeof(progressText), "Connecting to WiFi, attempt %d/%d", attempts + 1, maxAttempts);
+        updateWiFiStatus(progressText, ssid, "");
+        
+        attempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println();
+        Serial.print("Connected! IP: ");
+        Serial.println(WiFi.localIP());
+        
+        // Show success status
+        updateWiFiStatus("WiFi Connected!", ssid, WiFi.localIP().toString());
+        delay(1000); // Show success message briefly
+        
+        return true;
+    } else {
+        Serial.println();
+        Serial.println("Failed to connect to WiFi");
+        
+        // Show failure status
+        updateWiFiStatus("WiFi Connection Failed", ssid, "Check credentials");
+        delay(2000); // Show error message longer
+        
+        return false;
+    }
+}
+
+// HTTP request function
+bool httpGet(const char* path, String& response) {
+    HTTPClient http;
+    String url = "http://" + String(evcc_host) + ":" + String(evcc_port) + String(path);
+    
+    Serial.print("Requesting: ");
+    Serial.println(url);
+    
+    http.begin(url);
+    http.setTimeout(HTTP_TIMEOUT);
+    
+    int httpCode = http.GET();
+    bool success = false;
+    
+    if (httpCode == HTTP_CODE_OK) {
+        response = http.getString();
+        Serial.printf("HTTP success: %d chars\n", response.length());
+        Serial.println("=== HTTP Response ===");
+        Serial.println(response);
+        Serial.println("=== End Response ===");
+        success = true;
+    } else {
+        Serial.printf("HTTP error: %d\n", httpCode);
+    }
+    
+    http.end();
+    return success;
+}
+
+>>>>>>> parent of b457a54 (status webserver)
 // Parse combined data
 bool parseCombinedData(const String& json) {
     DynamicJsonDocument doc(1536);
     DeserializationError error = deserializeJson(doc, json);
     
     if (error) {
-    logMessage((uint8_t)LOG_LEVEL_ERROR, "Combined parse error: " + String(error.c_str()));
+        Serial.printf("Combined parse error: %s\n", error.c_str());
         return false;
     }
     
@@ -343,18 +765,18 @@ void createUI() {
     // Load screen
     lv_scr_load(ui.screen);
     
-    logMessage("UI created - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+    Serial.printf("UI created - Free heap: %d bytes\n", ESP.getFreeHeap());
 }
 
 // (updateUI moved)
 
 // Poll EVCC data
 bool pollEVCCData() {
-    logMessage("Starting poll - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+    Serial.printf("Starting poll - Free heap: %d bytes\n", ESP.getFreeHeap());
     
     // Check memory before HTTP request
     if (ESP.getFreeHeap() < 16000) {
-    logMessage((uint8_t)LOG_LEVEL_WARN, "Insufficient memory for HTTP request");
+        Serial.println("Insufficient memory for HTTP request");
         return false;
     }
     
@@ -373,13 +795,13 @@ bool pollEVCCData() {
             
             // Memory health check
             if (ESP.getFreeHeap() < 12000) {
-                logMessage((uint8_t)LOG_LEVEL_WARN, "Low memory after poll: " + String(ESP.getFreeHeap()) + " bytes");
+                Serial.printf("WARNING: Low memory after poll: %d bytes\n", ESP.getFreeHeap());
             }
             
             return true;
         }
     } else {
-    logMessage((uint8_t)LOG_LEVEL_ERROR, "HTTP request failed");
+        Serial.println("HTTP request failed");
     }
     
     return false;
@@ -460,7 +882,7 @@ void cleanupWiFiStatusScreen() {
 
 void setup() {
     Serial.begin(115200);
-    logMessage("EVCC Display ESP32 - Starting...", true);
+    Serial.println("EVCC Display ESP32 - Starting...");
     
     // Initialize watchdog timer (8 seconds)
     esp_task_wdt_deinit(); // Clear any existing watchdog
@@ -490,17 +912,14 @@ void setup() {
     // Initialize stripe pattern style
     initStripeStyle();
     
-    logMessage("Display initialized - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+    Serial.printf("Display initialized - Free heap: %d bytes\n", ESP.getFreeHeap());
     
     // Show WiFi connecting status immediately
     showWiFiConnectingStatus();
     
     // Connect to WiFi
     if (connectWiFi()) {
-        logMessage("After WiFi - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
-        
-        // Start web server for status/logs
-        startWebServer();
+        Serial.printf("After WiFi - Free heap: %d bytes\n", ESP.getFreeHeap());
         
         // Update status for time sync
         updateWiFiStatus("Synchronizing time...", ssid, WiFi.localIP().toString());
@@ -509,7 +928,7 @@ void setup() {
         configTime(0, 0, "pool.ntp.org", "time.nist.gov");
         setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1); // Europe/Berlin timezone
         tzset();
-        logMessage("Waiting for time synchronization...");
+        Serial.println("Waiting for time synchronization...");
         time_t now = time(nullptr);
         int attempts = 0;
         while (now < 8 * 3600 * 2 && attempts < 20) {
@@ -527,20 +946,20 @@ void setup() {
                 updateWiFiStatus(syncMsg, ssid, WiFi.localIP().toString());
             }
         }
-    logMessage("Time synchronized: " + String(ctime(&now)));
-                
+        Serial.printf("Time synchronized: %s", ctime(&now));
+        
         // Update status for HTTP test
         updateWiFiStatus("Testing EVCC connection...", ssid, WiFi.localIP().toString());
         
         // Test HTTP before UI creation
-        logMessage("Testing HTTP before UI creation...");
+        Serial.println("Testing HTTP before UI creation...");
         String response;
         if (httpGet(combined_path, response)) {
-            logMessage("✅ HTTP test successful before UI!");
+            Serial.println("✅ HTTP test successful before UI!");
             parseCombinedData(response);
         }
         
-        logMessage("After HTTP test - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+        Serial.printf("After HTTP test - Free heap: %d bytes\n", ESP.getFreeHeap());
         
         // Update status for UI creation
         updateWiFiStatus("Creating interface...", ssid, WiFi.localIP().toString());
@@ -551,15 +970,15 @@ void setup() {
         // Clean up WiFi status screen
         cleanupWiFiStatusScreen();
         
-        logMessage("After UI creation - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+        Serial.printf("After UI creation - Free heap: %d bytes\n", ESP.getFreeHeap());
         
         // Update UI with initial data
         updateUI();
-        logMessage("📊 UI updated with initial data");
+        Serial.println("📊 UI updated with initial data");
         
-        logMessage("Setup complete - Free heap: " + String(ESP.getFreeHeap()) + " bytes");
+        Serial.printf("Setup complete - Free heap: %d bytes\n", ESP.getFreeHeap());
     } else {
-        logMessage("WiFi failed - running in demo mode");
+        Serial.println("WiFi failed - running in demo mode");
         
         // Keep error message visible for a moment, then switch to demo UI
         delay(3000);
@@ -598,11 +1017,11 @@ void loop() {
         lastPoll = now;
         if (!pollEVCCData()) {
             data.consecutiveFailures++;
-            logMessage((uint8_t)LOG_LEVEL_WARN, "Poll failed (#" + String(data.consecutiveFailures) + ")");
+            Serial.printf("Poll failed (#%d)\n", data.consecutiveFailures);
             
             // Emergency restart if too many failures
             if (data.consecutiveFailures > 50) {
-                logMessage((uint8_t)LOG_LEVEL_ERROR, "Too many failures, restarting...", true);
+                Serial.println("Too many failures, restarting...");
                 delay(1000);
                 ESP.restart();
             }
@@ -613,7 +1032,7 @@ void loop() {
     if (WiFi.status() != WL_CONNECTED) {
         static unsigned long lastReconnectAttempt = 0;
         if (now - lastReconnectAttempt > 30000) { // Try every 30 seconds
-            logMessage((uint8_t)LOG_LEVEL_WARN, "WiFi disconnected, attempting reconnect...");
+            Serial.println("WiFi disconnected, attempting reconnect...");
             WiFi.begin(ssid, password);
             lastReconnectAttempt = now;
         }

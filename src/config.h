@@ -29,6 +29,7 @@
 #define HTTP_TIMEOUT 8000       // 8 seconds
 #define ROTATION_INTERVAL 10000 // 10 seconds for loadpoint rotation
 
+<<<<<<< HEAD
 // Threshold below which a power flow is considered inactive (used for dimming text)
 #ifndef POWER_ACTIVE_THRESHOLD
 #define POWER_ACTIVE_THRESHOLD 10.0f
@@ -51,6 +52,8 @@
 #define LOG_MIN_LEVEL LOG_LEVEL_INFO
 #endif
 
+=======
+>>>>>>> parent of b457a54 (status webserver)
 // Color definitions
 #define COLOR_GRID_BG     0xf3f3f7
 #define COLOR_PANEL_BG    0xFFFFFF
