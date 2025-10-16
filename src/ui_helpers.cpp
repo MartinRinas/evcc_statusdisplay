@@ -89,7 +89,7 @@ lv_obj_t* createCompositeBar(lv_obj_t* parent, int x, int y, int width, int heig
     lv_obj_set_style_border_width(container, 0, 0);
     lv_obj_set_style_radius(container, 8, 0);
     lv_obj_set_style_pad_all(container, 0, 0);
-    lv_obj_set_style_clip_corner(container, true, 0);
+    lv_obj_set_style_clip_corner(container, false, 0);  // Allow labels to overflow border
     lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_flag(container, LV_OBJ_FLAG_HIDDEN);
     return container;
@@ -137,7 +137,14 @@ void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, lv_obj_t** lab
     }
     lv_obj_clear_flag(container, LV_OBJ_FLAG_HIDDEN);
     int containerHeight = lv_obj_get_height(container);
-    const int minWidthForText = 40;
+    // Determine if we are using abbreviation mode (IN/OUT bars) vs value mode (overlay)
+    extern UIElements ui; // global
+    bool abbrevMode = (container == ui.in_bar.container) || (container == ui.out_bar.container);
+    // For numeric (overlay) segments we require a reasonable width; for abbreviation mode we dynamically
+    // calculate the pixel width required for the short label and only show it if it fits fully.
+    const int minWidthForValueText = 40; // overlay numeric labels
+    const char* inNames[4] = {"pv","bat","grid",""};
+    const char* outNames[4] = {"home","chg","bat","grid"};
     int currentX = 0;
     for (int i = 0; i < segmentCount; i++) {
         if (!segments[i]) continue;
@@ -148,16 +155,38 @@ void updateCompositeBar(lv_obj_t* container, lv_obj_t** segments, lv_obj_t** lab
             lv_obj_set_size(segments[i], segmentWidth, containerHeight);
             lv_obj_clear_flag(segments[i], LV_OBJ_FLAG_HIDDEN);
             if (labels && labels[i]) {
-                if (segmentWidth >= minWidthForText) {
-                    lv_label_set_text(labels[i], formatPower(values[i]).c_str());
-                    // Update label color dynamically based on current segment background
-                    lv_color_t segmentColor = lv_obj_get_style_bg_color(segments[i], 0);
-                    uint32_t textColor = getContrastTextColor(segmentColor);
-                    lv_obj_set_style_text_color(labels[i], lv_color_hex(textColor), 0);
-                    lv_obj_center(labels[i]);
-                    lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                if (abbrevMode) {
+                    // Determine the abbreviation text for this segment.
+                    const char* txt = (container == ui.in_bar.container) ? inNames[i] : outNames[i];
+                    if (txt == nullptr) txt = "";
+                    // Measure required pixel width for the text using the label's current font.
+                    const lv_font_t* font = lv_obj_get_style_text_font(labels[i], LV_PART_MAIN);
+                    lv_point_t sizeReq; 
+                    lv_txt_get_size(&sizeReq, txt, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                    int requiredWidth = sizeReq.x + 4; // small padding so we don't clip
+                    if (segmentWidth >= requiredWidth && txt[0] != '\0') {
+                        lv_label_set_text(labels[i], txt);
+                        lv_obj_set_style_text_color(labels[i], lv_color_hex(BS_GRAY_DARK), 0);
+                        if (container == ui.in_bar.container) {
+                            lv_obj_align_to(labels[i], segments[i], LV_ALIGN_TOP_MID, 0, 0);
+                        } else {
+                            lv_obj_align_to(labels[i], segments[i], LV_ALIGN_BOTTOM_MID, 0, 0);
+                        }
+                        lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                    } else {
+                        lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN); // hide if it doesn't fully fit
+                    }
                 } else {
-                    lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                    if (segmentWidth >= minWidthForValueText) {
+                        lv_label_set_text(labels[i], formatPower(values[i]).c_str());
+                        lv_color_t segmentColor = lv_obj_get_style_bg_color(segments[i], 0);
+                        uint32_t textColor = getContrastTextColor(segmentColor);
+                        lv_obj_set_style_text_color(labels[i], lv_color_hex(textColor), 0);
+                        lv_obj_center(labels[i]);
+                        lv_obj_clear_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                    } else {
+                        lv_obj_add_flag(labels[i], LV_OBJ_FLAG_HIDDEN);
+                    }
                 }
             }
             currentX += segmentWidth;

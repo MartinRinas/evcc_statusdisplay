@@ -171,6 +171,28 @@ void updateUI() {
     lv_obj_t* outSegments[4] = { ui.out_bar.consumption_segment, ui.out_bar.loadpoint_segment, ui.out_bar.battery_in_segment, ui.out_bar.grid_out_segment };
     lv_obj_t* outLabels[4] = { ui.out_bar.consumption_label, ui.out_bar.loadpoint_label, ui.out_bar.battery_in_label, ui.out_bar.grid_out_label };
     updateCompositeBar(ui.out_bar.container, outSegments, outLabels, outValues, 4, barMaxWidth);
+
+    // Overlay bar values (aggregated flows)
+    // selfPV: PV directly covering (home + battery charging + loadpoints charging)
+    // batteryCharge: positive when battery is charging (batteryPower < 0)
+    float pvPowerPos = data.pvPower > 0 ? data.pvPower : 0;
+    float loadpointsChargePower = total_lp_power > 0 ? total_lp_power : 0; // Only positive charging power
+    float batteryCharge = (data.batteryPower < 0) ? (-data.batteryPower) : 0; // charging portion
+    float localPVDemand = data.homePower + batteryCharge + loadpointsChargePower;
+    if (localPVDemand < 0) localPVDemand = 0; // safety clamp
+    float selfPV = fminf(pvPowerPos, localPVDemand);
+    // selfBattery: battery discharge covering consumption (existing definition)
+    float selfBattery = (data.batteryPower > 0) ? data.batteryPower : 0; // >0 = discharging
+    // grid import supplying consumption
+    float gridImport = (data.gridPower > 0) ? data.gridPower : 0;
+    // pv export (excess PV to grid)
+    float pvExport = (data.gridPower < 0) ? -data.gridPower : 0;
+    float overlayValues[4] = { selfPV, selfBattery, gridImport, pvExport };
+    lv_obj_t* overlaySegments[4] = { ui.overlay_bar.selfpv_segment, ui.overlay_bar.selfbattery_segment, ui.overlay_bar.grid_import_segment, ui.overlay_bar.pv_export_segment };
+    lv_obj_t* overlayLabels[4] = { ui.overlay_bar.selfpv_label, ui.overlay_bar.selfbattery_label, ui.overlay_bar.grid_import_label, ui.overlay_bar.pv_export_label };
+    if (ui.overlay_bar.container) {
+        updateCompositeBar(ui.overlay_bar.container, overlaySegments, overlayLabels, overlayValues, 4, barMaxWidth);
+    }
     auto* activeLP = getActiveLoadpoint();
     if (activeLP->charging) lv_label_set_text(ui.car.power_label, formatPower(activeLP->chargePower).c_str());
     else if (activeLP->plugged) lv_label_set_text(ui.car.power_label, "Verbunden");

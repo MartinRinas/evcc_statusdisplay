@@ -306,6 +306,9 @@ void createUI() {
     ui.in_bar.generation_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GENERATION), &ui.in_bar.generation_label);
     ui.in_bar.battery_out_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_BATTERY_OUT), &ui.in_bar.battery_out_label);
     ui.in_bar.grid_in_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GRID_IN), &ui.in_bar.grid_in_label);
+    // Remove background for IN bar container
+    lv_obj_set_style_bg_opa(ui.in_bar.container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_color(ui.in_bar.container, lv_color_hex(0x000000), 0); // color irrelevant when transparent
     
     // Create OUT bar below IN bar (offset by bar height + gap)
     int outBarY = 2 + 20 + 4; // IN bar Y + height + gap
@@ -314,12 +317,57 @@ void createUI() {
     ui.out_bar.loadpoint_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_LOADPOINT), &ui.out_bar.loadpoint_label);
     ui.out_bar.battery_in_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_BATTERY_IN), &ui.out_bar.battery_in_label);
     ui.out_bar.grid_out_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_GRID_OUT), &ui.out_bar.grid_out_label);
+    // Remove background for OUT bar container
+    lv_obj_set_style_bg_opa(ui.out_bar.container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_bg_color(ui.out_bar.container, lv_color_hex(0x000000), 0);
     
     // Create OUT label right-aligned, vertically aligned with OUT bar
     lv_obj_t* out_header = lv_label_create(ui.upper_container);
     lv_label_set_text(out_header, "Out");
     styleLabelHeader(out_header);
     positionAndAlign(out_header, outLabelX, outBarY, 60, LV_TEXT_ALIGN_RIGHT);
+
+    // Restyle IN and OUT segments to transparent frames with border
+    auto styleFrameSegment = [](lv_obj_t* seg, lv_obj_t* label){
+        if(!seg) return;
+        lv_obj_set_style_bg_opa(seg, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(seg, 1, 0);
+        lv_obj_set_style_border_color(seg, lv_color_hex(BS_GRAY_MEDIUM), 0);
+        lv_obj_set_style_pad_all(seg, 0, 0);
+        lv_obj_set_style_radius(seg, 8, 0); // rounded edges
+        if(label){
+            // Override any previous contrast color to static dark text
+            lv_obj_set_style_text_color(label, lv_color_hex(BS_GRAY_DARK), 0);
+        }
+    };
+    styleFrameSegment(ui.in_bar.generation_segment, ui.in_bar.generation_label);
+    styleFrameSegment(ui.in_bar.battery_out_segment, ui.in_bar.battery_out_label);
+    styleFrameSegment(ui.in_bar.grid_in_segment, ui.in_bar.grid_in_label);
+    styleFrameSegment(ui.out_bar.consumption_segment, ui.out_bar.consumption_label);
+    styleFrameSegment(ui.out_bar.loadpoint_segment, ui.out_bar.loadpoint_label);
+    styleFrameSegment(ui.out_bar.battery_in_segment, ui.out_bar.battery_in_label);
+    styleFrameSegment(ui.out_bar.grid_out_segment, ui.out_bar.grid_out_label);
+
+    // ---------------------------------------------------------------------
+    // Overlay bar (aggregated self consumption / import / export flows)
+    // Positioned vertically centered across the space spanned by IN and OUT bars
+    // IN bar: y=2 height=20, gap=4, OUT bar: y=26 height=20
+    // Total span = 44px from y=2 to y=46. Choose overlay height 16px.
+    // Center Y = 2 + 44/2 = 24 -> top = 24 - 8 = 16
+    const int overlayHeight = 16;
+    int overlayY = 16; // computed as above
+    ui.overlay_bar.container = createCompositeBar(ui.upper_container, barStartX, overlayY, barWidth, overlayHeight);
+    if (ui.overlay_bar.container) {
+        // Bring to foreground so it visually overlaps both bars
+        lv_obj_move_foreground(ui.overlay_bar.container);
+        // Slight transparency so underlying bars can still be perceived
+        lv_obj_set_style_bg_opa(ui.overlay_bar.container, LV_OPA_TRANSP, 0);
+        // Create four segments using existing semantic colors
+        ui.overlay_bar.selfpv_segment       = createBarSegment(ui.overlay_bar.container, lv_color_hex(COLOR_BAR_GENERATION), &ui.overlay_bar.selfpv_label);
+        ui.overlay_bar.selfbattery_segment  = createBarSegment(ui.overlay_bar.container, lv_color_hex(COLOR_BAR_BATTERY_OUT), &ui.overlay_bar.selfbattery_label);
+        ui.overlay_bar.grid_import_segment  = createBarSegment(ui.overlay_bar.container, lv_color_hex(COLOR_BAR_GRID_IN), &ui.overlay_bar.grid_import_label);
+        ui.overlay_bar.pv_export_segment    = createBarSegment(ui.overlay_bar.container, lv_color_hex(COLOR_BAR_GRID_OUT), &ui.overlay_bar.pv_export_label);
+    }
     
     // Create energy rows (moved down by 30px: from 30/52/74/96 to 60/82/104/126)
     createEnergyRow(in_column, "Erzeugung", "", "0W", 60, 

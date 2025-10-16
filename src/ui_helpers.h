@@ -38,6 +38,19 @@ struct UIElements {
         lv_obj_t* grid_out_label;
     } out_bar;
 
+    // Overlay bar (aggregated flows overlapping IN/OUT bars)
+    struct {
+        lv_obj_t* container;
+        lv_obj_t* selfpv_segment;       // Portion of consumption covered directly by PV
+        lv_obj_t* selfbattery_segment;  // Portion of consumption covered by battery discharge
+        lv_obj_t* grid_import_segment;  // Grid import powering consumption
+        lv_obj_t* pv_export_segment;    // PV exported to grid
+        lv_obj_t* selfpv_label;
+        lv_obj_t* selfbattery_label;
+        lv_obj_t* grid_import_label;
+        lv_obj_t* pv_export_label;
+    } overlay_bar;
+
     struct {
         lv_obj_t* title_label;
         lv_obj_t* car_label;
