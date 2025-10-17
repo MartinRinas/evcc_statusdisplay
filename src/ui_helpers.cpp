@@ -264,20 +264,30 @@ void createCarSection(lv_obj_t* parent, const char* title, const char* car_name)
     int powerLabelY = lv_obj_get_y(ui.car.power_label); // expected 25
     int bottomPhaseY = phaseBarY + phaseBarHeight;      // 50 + 4 = 54
     int centerY = (powerLabelY + bottomPhaseY) / 2;     // midpoint ~39
-    int lightningY = centerY - 8;                      // 32px icon -> shift by half height
+    int lightningY = centerY - 8 + 4;                   // 32px icon -> shift by half height, then move down 4px
     if (lightningY < 0) lightningY = 0;
     lv_obj_set_pos(ui.car.lightning_icon, phaseBarsTotalWidth + 6, lightningY); // keep horizontal margin (6px)
-    // Recolor to EVCC_DARKER_GREEN
+    // Recolor to EVCC_DARK_GREEN
     lv_obj_set_style_img_recolor_opa(ui.car.lightning_icon, LV_OPA_COVER, 0);
-    lv_obj_set_style_img_recolor(ui.car.lightning_icon, lv_color_hex(EVCC_DARKER_GREEN), 0);
+    lv_obj_set_style_img_recolor(ui.car.lightning_icon, lv_color_hex(EVCC_DARK_GREEN), 0);
     // Hidden until charging is true
     lv_obj_add_flag(ui.car.lightning_icon, LV_OBJ_FLAG_HIDDEN);
+    // Limit indicator bar (EVCC_GREEN background, shows charging limit when active)
+    ui.car.limit_indicator = lv_bar_create(container);
+    lv_obj_set_size(ui.car.limit_indicator, SCREEN_WIDTH - (4 * PADDING) - 16, 20);
+    lv_obj_set_pos(ui.car.limit_indicator, 0, 65);
+    lv_bar_set_value(ui.car.limit_indicator, 100, LV_ANIM_OFF); // full width by default
+    lv_obj_set_style_bg_color(ui.car.limit_indicator, lv_color_hex(0xE0E0E0), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(ui.car.limit_indicator, lv_color_hex(EVCC_GREEN), LV_PART_INDICATOR);
+    lv_obj_set_style_radius(ui.car.limit_indicator, 8, LV_PART_MAIN);
+    lv_obj_set_style_radius(ui.car.limit_indicator, 8, LV_PART_INDICATOR);
+    lv_obj_add_flag(ui.car.limit_indicator, LV_OBJ_FLAG_HIDDEN);
     ui.car.soc_bar = lv_bar_create(container);
     lv_obj_set_size(ui.car.soc_bar, SCREEN_WIDTH - (4 * PADDING) - 16, 20);
     lv_obj_set_pos(ui.car.soc_bar, 0, 65);
     lv_bar_set_value(ui.car.soc_bar, 0, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(ui.car.soc_bar, lv_color_hex(0xE0E0E0), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(ui.car.soc_bar, lv_color_hex(0x4CAF50), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(ui.car.soc_bar, lv_color_hex(EVCC_DARK_GREEN), LV_PART_INDICATOR);
     lv_obj_set_style_radius(ui.car.soc_bar, 8, LV_PART_MAIN);
     lv_obj_set_style_radius(ui.car.soc_bar, 8, LV_PART_INDICATOR);
     ui.car.plan_soc_marker = lv_obj_create(container);

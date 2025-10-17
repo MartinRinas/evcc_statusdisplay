@@ -60,6 +60,7 @@ struct UIElements {
         lv_obj_t* phase_bars[3];
         lv_obj_t* lightning_icon; // Lightning icon placed to the right of phase indicators
         lv_obj_t* soc_bar;
+        lv_obj_t* limit_indicator; // Background bar showing charging limit (EVCC_GREEN), visible only when charging
         lv_obj_t* plan_soc_marker;
         lv_obj_t* limit_soc_marker;
         lv_obj_t* soc_desc;

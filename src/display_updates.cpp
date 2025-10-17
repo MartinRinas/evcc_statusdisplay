@@ -199,6 +199,15 @@ void updateUI() {
         if (activeLP->charging) lv_obj_clear_flag(ui.car.lightning_icon, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(ui.car.lightning_icon, LV_OBJ_FLAG_HIDDEN);
     }
+    // Show limit indicator bar only when charging and a limit is set
+    if (ui.car.limit_indicator) {
+        if (activeLP->charging && activeLP->effectiveLimitSoc > 0) {
+            lv_bar_set_value(ui.car.limit_indicator, (int)activeLP->effectiveLimitSoc, LV_ANIM_OFF);
+            lv_obj_clear_flag(ui.car.limit_indicator, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(ui.car.limit_indicator, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
     if (activeLP->charging) lv_label_set_text(ui.car.power_label, formatPower(activeLP->chargePower).c_str());
     else if (activeLP->plugged) lv_label_set_text(ui.car.power_label, "Verbunden");
     else lv_label_set_text(ui.car.power_label, "Nicht verbunden");
