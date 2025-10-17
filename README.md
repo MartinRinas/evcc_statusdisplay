@@ -143,18 +143,11 @@ live data:
 
 
 
-### To Dos
+## To Dos
 - support for german special characters (Umlaute), currently not included in fonts
 - evaluate if icons can be used to replace text labels, icon dimensions are a challenging - unsure if 12x12/14x14px allow to identify sun, battery, home, grid clearly.
-
-### Common Issues & Solutions
-
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| **Compilation Error** | TFT_eSPI config | Check User_Setup.h or build flags |
-| **Black Screen** | Pin wiring | Verify pin connections |
-| **WiFi Fails** | Credentials | Check wifi_config.h |
-| **No Data** | EVCC unreachable | Verify server IP/port |
+- add indicator for current charging mode
+- evaluate enabling touch screen to change settings, like charging mode
 
 ## Advanced Configuration
 
