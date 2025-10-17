@@ -54,7 +54,9 @@ struct UIElements {
     struct {
         lv_obj_t* title_label;
         lv_obj_t* car_label;
+        lv_obj_t* power_desc;    // "LEISTUNG" label
         lv_obj_t* power_label;
+        lv_obj_t* duration_desc; // "RESTZEIT" label
         lv_obj_t* phase_bg_bars[3];
         lv_obj_t* phase_offered_bars[3];
         lv_obj_t* phase_bars[3];
@@ -66,7 +68,9 @@ struct UIElements {
         lv_obj_t* soc_desc;
         lv_obj_t* plan_desc;
         lv_obj_t* limit_desc;
+        lv_obj_t* charged_desc;  // "Geladen" label
         lv_obj_t* soc_value;
+        lv_obj_t* charged_value; // Charged energy value
         lv_obj_t* range_value;
         lv_obj_t* ladedauer_value;
         lv_obj_t* plan_value;

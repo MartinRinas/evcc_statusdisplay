@@ -21,6 +21,15 @@ static String formatEnergy(float wh) {
 static String formatPercentage(float value) { return value >= 0 ? String((int)value) + "%" : "---"; }
 static String formatDistance(float value) { return value >= 0 ? String((int)value) + "km" : "-- km"; }
 
+static String formatDuration(int seconds) {
+    if (seconds <= 0) return "--:--";
+    int hours = seconds / 3600;
+    int minutes = (seconds % 3600) / 60;
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%02d:%02d", hours, minutes);
+    return String(buf);
+}
+
 static String formatPlanTime(const String& isoTime) {
     if (isoTime.isEmpty() || isoTime.length() < 19) return "keiner";
     int year = isoTime.substring(0, 4).toInt();
@@ -273,9 +282,20 @@ void updateUI() {
     }
     if (activeLP->effectiveLimitSoc >= 0) lv_label_set_text(ui.car.ladelimit_value, formatPercentage(activeLP->effectiveLimitSoc).c_str());
     else lv_label_set_text(ui.car.ladelimit_value, "---");
-    if (!activeLP->planProjectedStart.isEmpty()) {
-        String formattedTime = formatPlanTime(activeLP->planProjectedStart);
-        char projectedDisplay[64]; snprintf(projectedDisplay, sizeof(projectedDisplay), "|--> %s", formattedTime.c_str());
-        lv_label_set_text(ui.car.ladedauer_value, projectedDisplay);
-    } else lv_label_set_text(ui.car.ladedauer_value, "--:--");
+    // Show remaining charge duration if charging, otherwise projected start time or --:--
+    if (ui.car.ladedauer_value) {
+        if (activeLP->charging && activeLP->chargeRemainingDuration > 0) {
+            lv_label_set_text(ui.car.ladedauer_value, formatDuration(activeLP->chargeRemainingDuration).c_str());
+        } else if (!activeLP->planProjectedStart.isEmpty()) {
+            String formattedTime = formatPlanTime(activeLP->planProjectedStart);
+            char projectedDisplay[64]; snprintf(projectedDisplay, sizeof(projectedDisplay), "|--> %s", formattedTime.c_str());
+            lv_label_set_text(ui.car.ladedauer_value, projectedDisplay);
+        } else {
+            lv_label_set_text(ui.car.ladedauer_value, "--:--");
+        }
+    }
+    // Update charged energy display
+    if (ui.car.charged_value) {
+        lv_label_set_text(ui.car.charged_value, formatEnergy(activeLP->chargedEnergy).c_str());
+    }
 }

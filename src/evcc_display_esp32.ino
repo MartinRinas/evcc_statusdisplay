@@ -148,6 +148,7 @@ bool httpGet(const char* path, String& response) {
     if (httpCode == HTTP_CODE_OK) {
         response = http.getString();
         logMessage("HTTP success: " + String(response.length()) + " chars");
+        logMessage(LOG_LEVEL_DEBUG, "HTTP Response: " + response);
         success = true;
     } else {
         logMessage((uint8_t)LOG_LEVEL_ERROR, "HTTP error: " + String(httpCode));
@@ -234,6 +235,8 @@ bool parseCombinedData(const String& json) {
         data.lp1.maxCurrent = lp1["maxCurrent"] | 0.0;
         data.lp1.offeredCurrent = lp1["offeredCurrent"] | 0.0;
         data.lp1.phasesActive = lp1["phasesActive"] | 0;
+        data.lp1.chargeRemainingDuration = lp1["chargeRemainingDuration"] | 0;
+        data.lp1.chargedEnergy = lp1["chargedEnergy"] | 0.0;
         JsonArray currents = lp1["chargeCurrents"];
         for (int i = 0; i < 3 && i < currents.size(); i++) {
             data.lp1.chargeCurrents[i] = currents[i] | 0.0;
@@ -256,6 +259,8 @@ bool parseCombinedData(const String& json) {
         data.lp2.maxCurrent = lp2["maxCurrent"] | 0.0;
         data.lp2.offeredCurrent = lp2["offeredCurrent"] | 0.0;
         data.lp2.phasesActive = lp2["phasesActive"] | 0;
+        data.lp2.chargeRemainingDuration = lp2["chargeRemainingDuration"] | 0;
+        data.lp2.chargedEnergy = lp2["chargedEnergy"] | 0.0;
         JsonArray currents = lp2["chargeCurrents"];
         for (int i = 0; i < 3 && i < currents.size(); i++) {
             data.lp2.chargeCurrents[i] = currents[i] | 0.0;

@@ -46,7 +46,7 @@ void setupWebServer(AsyncWebServer& server) {
     
     // Status endpoint - JSON format
     server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
-        StaticJsonDocument<1024> doc;
+        StaticJsonDocument<2048> doc;
         doc["uptime"] = millis() / 1000;
         doc["freeHeap"] = ESP.getFreeHeap();
         doc["debugEnabled"] = debugEnabled;
@@ -67,6 +67,50 @@ void setupWebServer(AsyncWebServer& server) {
         evcc["homePower"] = data.homePower;
         evcc["batteryPower"] = data.batteryPower;
         evcc["batterySoc"] = data.batterySoc;
+        evcc["solarForecastTodayEnergy"] = data.solarForecastTodayEnergy;
+        evcc["solarForecastScale"] = data.solarForecastScale;
+        
+        // Add loadpoint 1 data
+        JsonObject lp1 = doc.createNestedObject("loadpoint1");
+        lp1["title"] = data.lp1.title;
+        lp1["vehicleTitle"] = data.lp1.vehicleTitle;
+        lp1["chargePower"] = data.lp1.chargePower;
+        lp1["charging"] = data.lp1.charging;
+        lp1["plugged"] = data.lp1.plugged;
+        lp1["soc"] = data.lp1.soc;
+        lp1["vehicleRange"] = data.lp1.vehicleRange;
+        lp1["effectivePlanSoc"] = data.lp1.effectivePlanSoc;
+        lp1["effectiveLimitSoc"] = data.lp1.effectiveLimitSoc;
+        lp1["effectivePlanTime"] = data.lp1.effectivePlanTime;
+        lp1["planProjectedStart"] = data.lp1.planProjectedStart;
+        lp1["phasesActive"] = data.lp1.phasesActive;
+        lp1["maxCurrent"] = data.lp1.maxCurrent;
+        lp1["offeredCurrent"] = data.lp1.offeredCurrent;
+        lp1["chargeRemainingDuration"] = data.lp1.chargeRemainingDuration;
+        lp1["chargedEnergy"] = data.lp1.chargedEnergy;
+        JsonArray lp1currents = lp1.createNestedArray("chargeCurrents");
+        for (int i = 0; i < 3; i++) lp1currents.add(data.lp1.chargeCurrents[i]);
+        
+        // Add loadpoint 2 data
+        JsonObject lp2 = doc.createNestedObject("loadpoint2");
+        lp2["title"] = data.lp2.title;
+        lp2["vehicleTitle"] = data.lp2.vehicleTitle;
+        lp2["chargePower"] = data.lp2.chargePower;
+        lp2["charging"] = data.lp2.charging;
+        lp2["plugged"] = data.lp2.plugged;
+        lp2["soc"] = data.lp2.soc;
+        lp2["vehicleRange"] = data.lp2.vehicleRange;
+        lp2["effectivePlanSoc"] = data.lp2.effectivePlanSoc;
+        lp2["effectiveLimitSoc"] = data.lp2.effectiveLimitSoc;
+        lp2["effectivePlanTime"] = data.lp2.effectivePlanTime;
+        lp2["planProjectedStart"] = data.lp2.planProjectedStart;
+        lp2["phasesActive"] = data.lp2.phasesActive;
+        lp2["maxCurrent"] = data.lp2.maxCurrent;
+        lp2["offeredCurrent"] = data.lp2.offeredCurrent;
+        lp2["chargeRemainingDuration"] = data.lp2.chargeRemainingDuration;
+        lp2["chargedEnergy"] = data.lp2.chargedEnergy;
+        JsonArray lp2currents = lp2.createNestedArray("chargeCurrents");
+        for (int i = 0; i < 3; i++) lp2currents.add(data.lp2.chargeCurrents[i]);
         
         String output;
         serializeJson(doc, output);
