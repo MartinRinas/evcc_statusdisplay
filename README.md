@@ -107,31 +107,15 @@ pio run --target upload --target monitor
 - Tools → Upload
 
 ## Display Layout
+Using demo data from demo.evcc.io:
+![PXL_20251017_085915184](https://github.com/user-attachments/assets/bf5b8e9a-a1f4-479b-8108-dc47448814f0)
 
-### Upper Section - Energy Overview
-```
-┌─────────────────┬───────────────────────────────┐
-│       In        │           Out                 │
-├─────────────────┼───────────────────────────────┤
-│ Erzeugung       │ Verbrauch                     │
-│ Batterie entl.  │ Ladepunkt                     │
-│ Netzbezug       │ Batterie laden                │
-│                 │ Einspeisung                   │
-└─────────────────┴───────────────────────────────┘
-```
+live data:
+![PXL_20251017_085728563](https://github.com/user-attachments/assets/4781f419-f48c-4b7c-b7f9-62f7107f1f93)
+
+
 - **Conditional Colors**: Inactive flows shown in secondary color
 - **Real-time Values**: Power in W/kW, percentages for battery
-
-### Lower Section - Vehicle Status  
-```
-┌─────────────────────────────────────────────────┐
-│ [Title]                           [Car Name]    │
-│ [Power/Status]              [Duration/Plan]     │
-│ [████████████SoC Bar████████████]               │
-│ [SoC%]     [Plan Time]          [Limit%]        │
-│ [Range]    [Plan SoC%]                          │
-└─────────────────────────────────────────────────┘
-```
 
 **Auto-Rotation Logic**:
 - **Only one charging** → Show active loadpoint
@@ -151,27 +135,19 @@ pio run --target upload --target monitor
 - **Failure Tracking**: Monitors and responds to repeated HTTP failures
 
 ## Development & Debugging
-
-### Serial Monitor Output
-```
-EVCC Display ESP32 - Starting...
-Display initialized - Free heap: 234156 bytes
-WiFi Connected! IP: 192.168.1.150
-✅ HTTP test successful before UI!
-UI created - Free heap: 187432 bytes
-📊 UI updated with initial data
-Setup complete - Free heap: 185216 bytes
-```
+- **Demo data**: Supports switching to data from demo.evcc.io for validation and showcase
+- **Webserver**: Status webserver with access to logs, current JSON retrieved from the API and option to turn on serial logging (debug)
+<img width="1538" height="1384" alt="Screenshot 2025-10-17 105624" src="https://github.com/user-attachments/assets/194e5402-86c7-4c76-bca8-d890826543bd" />
+<img width="1538" height="1384" alt="Screenshot 2025-10-17 105632" src="https://github.com/user-attachments/assets/92009497-1056-4bfa-8153-9292b9e6b40c" />
+<img width="1538" height="1384" alt="Screenshot 2025-10-17 105640" src="https://github.com/user-attachments/assets/634c26e9-7af5-429b-9e69-1f02677a0f94" />
 
 
-### Common Issues & Solutions
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| **Compilation Error** | TFT_eSPI config | Check User_Setup.h or build flags |
-| **Black Screen** | Pin wiring | Verify pin connections |
-| **WiFi Fails** | Credentials | Check wifi_config.h |
-| **No Data** | EVCC unreachable | Verify server IP/port |
+## To Dos
+- support for german special characters (Umlaute), currently not included in fonts
+- evaluate if icons can be used to replace text labels, icon dimensions are a challenging - unsure if 12x12/14x14px allow to identify sun, battery, home, grid clearly.
+- add indicator for current charging mode
+- evaluate enabling touch screen to change settings, like charging mode
 
 ## Advanced Configuration
 
