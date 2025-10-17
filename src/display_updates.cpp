@@ -194,6 +194,11 @@ void updateUI() {
         updateCompositeBar(ui.overlay_bar.container, overlaySegments, overlayLabels, overlayValues, 4, barMaxWidth);
     }
     auto* activeLP = getActiveLoadpoint();
+    // Show lightning icon only while actively charging
+    if (ui.car.lightning_icon) {
+        if (activeLP->charging) lv_obj_clear_flag(ui.car.lightning_icon, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(ui.car.lightning_icon, LV_OBJ_FLAG_HIDDEN);
+    }
     if (activeLP->charging) lv_label_set_text(ui.car.power_label, formatPower(activeLP->chargePower).c_str());
     else if (activeLP->plugged) lv_label_set_text(ui.car.power_label, "Verbunden");
     else lv_label_set_text(ui.car.power_label, "Nicht verbunden");

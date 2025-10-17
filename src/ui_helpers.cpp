@@ -1,5 +1,6 @@
 // ui_helpers.cpp - Implementation of UI helper functions
 #include "ui_helpers.h"
+#include "assets.h" // ICON_LIGHTNING
 
 // Global UI instance defined elsewhere
 extern UIElements ui;
@@ -255,6 +256,22 @@ void createCarSection(lv_obj_t* parent, const char* title, const char* car_name)
         ui.car.phase_offered_bars[i] = createPhaseBar(container, phaseBarX, phaseBarY, phaseBarWidth, phaseBarHeight, 0x8BC34A, LV_OPA_40, true);
         ui.car.phase_bars[i] = createPhaseBar(container, phaseBarX, phaseBarY, 0, phaseBarHeight, COLOR_BAR_GENERATION, LV_OPA_COVER, true);
     }
+    // Lightning icon positioned immediately to the right of the three phase bars
+    int phaseBarsTotalWidth = 3 * phaseBarWidth + 2 * phaseBarSpacing; // width occupied by 3 bars + gaps
+    ui.car.lightning_icon = lv_img_create(container);
+    lv_img_set_src(ui.car.lightning_icon, &ICON_LIGHTNING);
+    // Vertically center lightning between top of power label (y=25) and bottom of phase bars (phaseBarY + height)
+    int powerLabelY = lv_obj_get_y(ui.car.power_label); // expected 25
+    int bottomPhaseY = phaseBarY + phaseBarHeight;      // 50 + 4 = 54
+    int centerY = (powerLabelY + bottomPhaseY) / 2;     // midpoint ~39
+    int lightningY = centerY - 8;                      // 32px icon -> shift by half height
+    if (lightningY < 0) lightningY = 0;
+    lv_obj_set_pos(ui.car.lightning_icon, phaseBarsTotalWidth + 6, lightningY); // keep horizontal margin (6px)
+    // Recolor to EVCC_DARKER_GREEN
+    lv_obj_set_style_img_recolor_opa(ui.car.lightning_icon, LV_OPA_COVER, 0);
+    lv_obj_set_style_img_recolor(ui.car.lightning_icon, lv_color_hex(EVCC_DARKER_GREEN), 0);
+    // Hidden until charging is true
+    lv_obj_add_flag(ui.car.lightning_icon, LV_OBJ_FLAG_HIDDEN);
     ui.car.soc_bar = lv_bar_create(container);
     lv_obj_set_size(ui.car.soc_bar, SCREEN_WIDTH - (4 * PADDING) - 16, 20);
     lv_obj_set_pos(ui.car.soc_bar, 0, 65);
