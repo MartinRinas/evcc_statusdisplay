@@ -306,8 +306,10 @@ void createUI() {
     // OUT label position (right side, aligned with value columns)
     int outLabelX = SCREEN_WIDTH - (3 * PADDING) - 60; // Right-aligned
     
-    // Create IN bar centered at top
-    ui.in_bar.container = createCompositeBar(ui.upper_container, barStartX, 2, barWidth, 20);
+    // Create IN bar centered at top (increased to 24px to match lower bar)
+    const int barHeight = 24;
+    const int barGap = 9; // Gap between IN and OUT bars (increased from 4px)
+    ui.in_bar.container = createCompositeBar(ui.upper_container, barStartX, 2, barWidth, barHeight);
     ui.in_bar.generation_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GENERATION), &ui.in_bar.generation_label);
     ui.in_bar.battery_out_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_BATTERY_OUT), &ui.in_bar.battery_out_label);
     ui.in_bar.grid_in_segment = createBarSegment(ui.in_bar.container, lv_color_hex(COLOR_BAR_GRID_IN), &ui.in_bar.grid_in_label);
@@ -316,8 +318,8 @@ void createUI() {
     lv_obj_set_style_bg_color(ui.in_bar.container, lv_color_hex(0x000000), 0); // color irrelevant when transparent
     
     // Create OUT bar below IN bar (offset by bar height + gap)
-    int outBarY = 2 + 20 + 4; // IN bar Y + height + gap
-    ui.out_bar.container = createCompositeBar(ui.upper_container, barStartX, outBarY, barWidth, 20);
+    int outBarY = 2 + barHeight + barGap; // IN bar Y + height + gap
+    ui.out_bar.container = createCompositeBar(ui.upper_container, barStartX, outBarY, barWidth, barHeight);
     ui.out_bar.consumption_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_CONSUMPTION), &ui.out_bar.consumption_label);
     ui.out_bar.loadpoint_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_LOADPOINT), &ui.out_bar.loadpoint_label);
     ui.out_bar.battery_in_segment = createBarSegment(ui.out_bar.container, lv_color_hex(COLOR_BAR_BATTERY_IN), &ui.out_bar.battery_in_label);
@@ -356,11 +358,11 @@ void createUI() {
     // ---------------------------------------------------------------------
     // Overlay bar (aggregated self consumption / import / export flows)
     // Positioned vertically centered across the space spanned by IN and OUT bars
-    // IN bar: y=2 height=20, gap=4, OUT bar: y=26 height=20
-    // Total span = 44px from y=2 to y=46. Choose overlay height 16px.
-    // Center Y = 2 + 44/2 = 24 -> top = 24 - 8 = 16
-    const int overlayHeight = 16;
-    int overlayY = 16; // computed as above
+    // IN bar: y=2 height=24, gap=7, OUT bar: y=33 height=24
+    // Total span = 55px from y=2 to y=57. Choose overlay height 24px to match bars.
+    // Center Y = 2 + 55/2 = 29.5 -> top = 29.5 - 12 = 17.5 ≈ 17
+    const int overlayHeight = barHeight;
+    int overlayY = 17; // computed as above
     ui.overlay_bar.container = createCompositeBar(ui.upper_container, barStartX, overlayY, barWidth, overlayHeight);
     if (ui.overlay_bar.container) {
         // Bring to foreground so it visually overlaps both bars
@@ -374,21 +376,21 @@ void createUI() {
         ui.overlay_bar.pv_export_segment    = createBarSegment(ui.overlay_bar.container, lv_color_hex(COLOR_BAR_GRID_OUT), &ui.overlay_bar.pv_export_label);
     }
     
-    // Create energy rows (moved down by 30px: from 30/52/74/96 to 60/82/104/126)
-    createEnergyRow(in_column, "Erzeugung", "", "0W", 60, 
+    // Create energy rows (20px spacing, moved down 3px for better spacing)
+    createEnergyRow(in_column, "Erzeugung", "", "0W", 75, 
                     &ui.generation.desc, &ui.generation.value1, &ui.generation.value2);
-    createEnergyRow(in_column, "Batterie entladen", "", "0W", 82, 
+    createEnergyRow(in_column, "Batterie entladen", "", "0W", 95, 
                     &ui.battery_discharge.desc, &ui.battery_discharge.value1, &ui.battery_discharge.value2);
-    createEnergyRow(in_column, "Netzbezug", "", "0W", 104, 
+    createEnergyRow(in_column, "Netzbezug", "", "0W", 115, 
                     &ui.grid_feed.desc, &ui.grid_feed.value1, &ui.grid_feed.value2);
 
-    createEnergyRow(out_column, "Verbrauch", "", "0W", 60, 
+    createEnergyRow(out_column, "Verbrauch", "", "0W", 75, 
                     &ui.consumption.desc, &ui.consumption.value1, &ui.consumption.value2);
-    createEnergyRow(out_column, "Ladepunkt", "", "0W", 82, 
+    createEnergyRow(out_column, "Ladepunkt", "", "0W", 95, 
                     &ui.loadpoint.desc, &ui.loadpoint.value1, &ui.loadpoint.value2);
-    createEnergyRow(out_column, "Batterie laden", "", "0W", 104, 
+    createEnergyRow(out_column, "Batterie laden", "", "0W", 115, 
                     &ui.battery_charge.desc, &ui.battery_charge.value1, &ui.battery_charge.value2);
-    createEnergyRow(out_column, "Einspeisung", "", "5W", 126, 
+    createEnergyRow(out_column, "Einspeisung", "", "5W", 135, 
                     &ui.grid_feedin.desc, &ui.grid_feedin.value1, &ui.grid_feedin.value2);
     
     // Lower container

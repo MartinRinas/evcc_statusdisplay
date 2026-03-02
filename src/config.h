@@ -108,7 +108,7 @@
 #define CONTAINER_RADIUS 0
 
 // EVCC API endpoint path  
-#define EVCC_API_PATH "/api/state?jq={gridPower:.grid.power,pvPower:.pvPower,batterySoc:.batterySoc,homePower:.homePower,batteryPower:.batteryPower,solar:{scale:(.forecast.solar.scale),todayEnergy:(.forecast.solar.today.energy)},loadpoints:[.loadpoints[0],.loadpoints[1]]|map(select(.!=null)|{chargePower:.chargePower,soc:(.vehicleSoc//.soc),charging:.charging,plugged:(.connected//.plugged),title:.title,vehicletitle:.vehicleTitle,vehicleRange:.vehicleRange,effectivePlanTime:.effectivePlanTime,effectivePlanSoc:.effectivePlanSoc,effectiveLimitSoc:.effectiveLimitSoc,planProjectedStart:.planProjectedStart,chargeCurrents:.chargeCurrents,maxCurrent:.maxCurrent,offeredCurrent:.chargeCurrent,phasesActive:.phasesActive,chargeRemainingDuration:.chargeRemainingDuration,chargedEnergy:.chargedEnergy})}"
+#define EVCC_API_PATH "/api/state?jq={gridPower:.grid.power,pvPower:.pvPower,batterySoc:.battery.soc,homePower:.homePower,batteryPower:.battery.power,solar:{scale:(.forecast.solar.scale),todayEnergy:(.forecast.solar.today.energy)},loadpoints:[.loadpoints[0],.loadpoints[1]]|map(select(.!=null)|{chargePower:.chargePower,soc:(.vehicleSoc//.soc),charging:.charging,plugged:(.connected//.plugged),title:.title,vehicletitle:.vehicleTitle,vehicleRange:.vehicleRange,effectivePlanTime:.effectivePlanTime,effectivePlanSoc:.effectivePlanSoc,effectiveLimitSoc:.effectiveLimitSoc,planProjectedStart:.planProjectedStart,chargeCurrents:.chargeCurrents,maxCurrent:.maxCurrent,offeredCurrent:.offeredCurrent,phasesActive:.phasesActive,chargeRemainingDuration:.chargeRemainingDuration,chargedEnergy:.chargedEnergy})}"
 
 // Data structure for EVCC loadpoint values
 struct LoadpointData {
