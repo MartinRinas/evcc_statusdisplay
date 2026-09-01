@@ -44,6 +44,7 @@ const char* password = WIFI_PASSWORD;
 const char* evcc_host = EVCC_HOST;
 const int evcc_port = EVCC_PORT;
 const char* combined_path = EVCC_API_PATH;
+const char* vehicles_path = EVCC_API_PATH_VEHICLES;
 
 // Display and LVGL setup
 TFT_eSPI tft = TFT_eSPI();
@@ -176,7 +177,7 @@ bool stripe_applied = false;
 // (Composite bar / energy row / column / car section helpers now implemented in ui_helpers.cpp)
 // Parse combined data
 bool parseCombinedData(const String& json) {
-    DynamicJsonDocument doc(1536);
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, json);
     
     if (error) {
@@ -204,6 +205,9 @@ bool parseCombinedData(const String& json) {
     // Reset loadpoint data
     data.lp1.soc = -1.0;
     data.lp1.chargePower = 0.0;
+    data.lp1.vehicleName = "";
+    data.lp1.vehicleSocSupported = true;
+    data.lp1.vehicleCapacity = -1.0;
     data.lp1.vehicleRange = -1.0;
     data.lp1.effectivePlanTime = "";
     data.lp1.effectivePlanSoc = -1.0;
@@ -211,12 +215,15 @@ bool parseCombinedData(const String& json) {
     data.lp1.planProjectedStart = "";
     data.lp2.soc = -1.0;
     data.lp2.chargePower = 0.0;
+    data.lp2.vehicleName = "";
+    data.lp2.vehicleSocSupported = true;
+    data.lp2.vehicleCapacity = -1.0;
     data.lp2.vehicleRange = -1.0;
     data.lp2.effectivePlanTime = "";
     data.lp2.effectivePlanSoc = -1.0;
     data.lp2.effectiveLimitSoc = -1.0;
     data.lp2.planProjectedStart = "";
-    
+
     // Parse loadpoint data
     JsonArray loadpoints = doc["loadpoints"];
     if (loadpoints.size() > 0 && !loadpoints[0].isNull()) {
@@ -224,7 +231,8 @@ bool parseCombinedData(const String& json) {
         data.lp1.soc = lp1["soc"] | -1.0;
         data.lp1.chargePower = lp1["chargePower"] | 0.0;
         data.lp1.title = lp1["title"] | "LP1";
-        data.lp1.vehicleTitle = lp1["vehicletitle"] | "";
+        data.lp1.vehicleTitle = lp1["vehicleTitle"] | "";
+        data.lp1.vehicleName = lp1["vehicleName"] | "";
         data.lp1.charging = lp1["charging"] | false;
         data.lp1.plugged = lp1["plugged"] | false;
         data.lp1.vehicleRange = lp1["vehicleRange"] | -1.0;
@@ -248,7 +256,8 @@ bool parseCombinedData(const String& json) {
         data.lp2.soc = lp2["soc"] | -1.0;
         data.lp2.chargePower = lp2["chargePower"] | 0.0;
         data.lp2.title = lp2["title"] | "LP2";
-        data.lp2.vehicleTitle = lp2["vehicletitle"] | "";
+        data.lp2.vehicleTitle = lp2["vehicleTitle"] | "";
+        data.lp2.vehicleName = lp2["vehicleName"] | "";
         data.lp2.charging = lp2["charging"] | false;
         data.lp2.plugged = lp2["plugged"] | false;
         data.lp2.vehicleRange = lp2["vehicleRange"] | -1.0;
@@ -271,6 +280,39 @@ bool parseCombinedData(const String& json) {
     // float total_charge_power = data.lp1.chargePower + data.lp2.chargePower;
     
     
+    return true;
+}
+
+// Parse vehicles data (fetched separately, see EVCC_API_PATH_VEHICLES comment)
+bool parseVehiclesData(const String& json) {
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, json);
+
+    if (error) {
+        logMessage((uint8_t)LOG_LEVEL_ERROR, "Vehicles parse error: " + String(error.c_str()));
+        return false;
+    }
+
+    auto applyVehicle = [&doc](LoadpointData& lp) {
+        if (lp.vehicleName.isEmpty()) return;
+        JsonObject vehicle = doc[lp.vehicleName];
+        if (vehicle.isNull()) return;
+        lp.vehicleCapacity = vehicle["capacity"] | -1.0;
+        lp.vehicleSocSupported = true;
+        JsonArray features = vehicle["features"];
+        if (!features.isNull()) {
+            for (JsonVariant feature : features) {
+                const char* featureName = feature.as<const char*>();
+                if (featureName != nullptr && strcmp(featureName, "Offline") == 0) {
+                    lp.vehicleSocSupported = false;
+                    break;
+                }
+            }
+        }
+    };
+
+    applyVehicle(data.lp1);
+    applyVehicle(data.lp2);
     return true;
 }
 
@@ -424,9 +466,14 @@ bool pollEVCCData() {
     String response;
     response.reserve(2048); // Pre-allocate to avoid fragmentation
     
-    // Get combined data in single request
+    // Get main data, then vehicle capacity/features in a second request
+    // (evcc rejects jq queries over ~512 chars, so this can't be combined into one request)
     if (httpGet(combined_path, response)) {
         if (parseCombinedData(response)) {
+            String vehiclesResponse;
+            if (httpGet(vehicles_path, vehiclesResponse)) {
+                parseVehiclesData(vehiclesResponse);
+            }
             data.lastUpdate = millis();
             data.consecutiveFailures = 0;
             updateUI();
@@ -601,6 +648,10 @@ void setup() {
         if (httpGet(combined_path, response)) {
             logMessage("✅ HTTP test successful before UI!");
             parseCombinedData(response);
+            String vehiclesResponse;
+            if (httpGet(vehicles_path, vehiclesResponse)) {
+                parseVehiclesData(vehiclesResponse);
+            }
         }
         
         logMessage("After HTTP test - Free heap: " + String(ESP.getFreeHeap()) + " bytes");

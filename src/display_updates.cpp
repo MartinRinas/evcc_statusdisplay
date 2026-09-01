@@ -21,6 +21,11 @@ static String formatEnergy(float wh) {
 static String formatPercentage(float value) { return value >= 0 ? String((int)value) + "%" : "---"; }
 static String formatDistance(float value) { return value >= 0 ? String((int)value) + "km" : "-- km"; }
 
+static float calculateSocGain(float chargedEnergyWh, float vehicleCapacityKWh) {
+    if (chargedEnergyWh < 0 || vehicleCapacityKWh <= 0) return -1.0f;
+    return (chargedEnergyWh / 1000.0f / vehicleCapacityKWh) * 100.0f;
+}
+
 static String formatDuration(int seconds) {
     if (seconds <= 0) return "--:--";
     int hours = seconds / 3600;
@@ -220,12 +225,24 @@ void updateUI() {
     if (activeLP->charging) lv_label_set_text(ui.car.power_label, formatPower(activeLP->chargePower).c_str());
     else if (activeLP->plugged) lv_label_set_text(ui.car.power_label, "Verbunden");
     else lv_label_set_text(ui.car.power_label, "Nicht verbunden");
-    if (activeLP->soc >= 0) {
+    if (activeLP->vehicleSocSupported && activeLP->soc >= 0) {
         lv_bar_set_value(ui.car.soc_bar, (int)activeLP->soc, LV_ANIM_OFF);
         lv_label_set_text(ui.car.soc_value, formatPercentage(activeLP->soc).c_str());
         applyStripePattern(ui.car.soc_bar, activeLP->charging);
     } else {
-        lv_label_set_text(ui.car.soc_value, "---");
+        lv_bar_set_value(ui.car.soc_bar, 0, LV_ANIM_OFF);
+        applyStripePattern(ui.car.soc_bar, false);
+        if (!activeLP->vehicleSocSupported) {
+            float socGain = calculateSocGain(activeLP->chargedEnergy, activeLP->vehicleCapacity);
+            if (socGain >= 0) {
+                String socGainText = "+" + formatPercentage(socGain);
+                lv_label_set_text(ui.car.soc_value, socGainText.c_str());
+            } else {
+                lv_label_set_text(ui.car.soc_value, "---");
+            }
+        } else {
+            lv_label_set_text(ui.car.soc_value, "---");
+        }
     }
     int phaseBarWidth = 30;
     if (activeLP->charging) {
