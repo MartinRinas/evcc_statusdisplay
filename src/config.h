@@ -107,8 +107,11 @@
 #define CONTAINER_PAD 4
 #define CONTAINER_RADIUS 0
 
-// EVCC API endpoint path  
-#define EVCC_API_PATH "/api/state?jq={gridPower:.grid.power,pvPower:.pvPower,batterySoc:.battery.soc,homePower:.homePower,batteryPower:.battery.power,solar:{scale:(.forecast.solar.scale),todayEnergy:(.forecast.solar.today.energy)},loadpoints:[.loadpoints[0],.loadpoints[1]]|map(select(.!=null)|{chargePower:.chargePower,soc:(.vehicleSoc//.soc),charging:.charging,plugged:(.connected//.plugged),title:.title,vehicletitle:.vehicleTitle,vehicleRange:.vehicleRange,effectivePlanTime:.effectivePlanTime,effectivePlanSoc:.effectivePlanSoc,effectiveLimitSoc:.effectiveLimitSoc,planProjectedStart:.planProjectedStart,chargeCurrents:.chargeCurrents,maxCurrent:.maxCurrent,offeredCurrent:.offeredCurrent,phasesActive:.phasesActive,chargeRemainingDuration:.chargeRemainingDuration,chargedEnergy:.chargedEnergy})}"
+// EVCC API endpoint paths
+// Note: evcc enforces a ~512 char limit on the jq query string ("jq: query too long"),
+// so the data is split across two requests instead of one combined query.
+#define EVCC_API_PATH "/api/state?jq={gridPower:.grid.power,pvPower,batterySoc:.battery.soc,homePower,batteryPower:.battery.power,solar:{scale:.forecast.solar.scale,todayEnergy:.forecast.solar.today.energy},loadpoints:(.loadpoints[0:2]|map(select(.!=null)|{chargePower,charging,title,vehicleTitle,vehicleName,vehicleRange,effectivePlanTime,effectivePlanSoc,effectiveLimitSoc,planProjectedStart,chargeCurrents,maxCurrent,offeredCurrent,phasesActive,chargeRemainingDuration,chargedEnergy,soc:(.vehicleSoc//.soc),plugged:(.connected//.plugged)}))}"
+#define EVCC_API_PATH_VEHICLES "/api/state?jq=.vehicles|map_values({capacity,features})"
 
 // Data structure for EVCC loadpoint values
 struct LoadpointData {
@@ -116,8 +119,11 @@ struct LoadpointData {
     float chargePower = 0.0;
     String title;
     String vehicleTitle;
+    String vehicleName;
     bool charging = false;
     bool plugged = false;
+    bool vehicleSocSupported = true;
+    float vehicleCapacity = -1.0;
     float vehicleRange = -1.0;
     String effectivePlanTime;
     float effectivePlanSoc = -1.0;
@@ -134,6 +140,7 @@ struct LoadpointData {
     LoadpointData() {
         title.reserve(16);
         vehicleTitle.reserve(32);
+        vehicleName.reserve(16);
         effectivePlanTime.reserve(32);
         planProjectedStart.reserve(32);
     }
